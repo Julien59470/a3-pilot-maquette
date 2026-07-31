@@ -1,0 +1,199 @@
+:item?'Modification':'Création', title:item?'Modifier l’affaire':'Nouvelle affaire', description:'Structure commerciale et opérationnelle de l’opération.', submitLabel:item?'Enregistrer':'Créer l’affaire', wide:true, body:`<div class="form-grid form-grid--2">
+      ${fieldInput('Référence','ref',item?.ref || nextReference(),'text',true)}
+      ${fieldInput('Nom de l’affaire','name',item?.name || '','text',true)}
+      ${fieldSelect('Client','clientId',state.clients.map(client=>[client.id,client.name]),item?.clientId || state.clients[0]?.id,true)}
+      ${fieldSelect('Société','companyId',state.companies.map(company=>[company.id,company.name]),item?.companyId || state.settings.companyId,true)}
+      ${fieldInput('Ville','city',item?.city || '','text',true)}
+      ${fieldInput('Adresse','address',item?.address || '','text',false)}
+      ${fieldSelect('Conducteur','managerId',state.users.map(user=>[user.id,`${user.name} — ${user.role}`]),item?.managerId || 'usr_marc',true)}
+      ${fieldInput('Échéance','dueDate',item?.dueDate || '','date',true)}
+      ${fieldInput('Budget HT','budget',item?.budget || '','number',false,'1')}
+      ${fieldSelect('Statut','status',[['active','Active'],['warning','À surveiller'],['completed','Terminée'],['archived','Archivée']],item?.status || 'active',true)}
+      ${fieldInput('Référence Dolibarr','dolibarrRef',item?.dolibarrRef || '','text',false)}
+    </div>` };
+  }
+
+  function repereForm(id, context) {
+    const item = id ? getRepere(id) : null;
+    const defaultAffair = context.affairId || state.settings.selectedAffaireId || state.affaires[0]?.id;
+    return { eyebrow:item?'Modification':'Création', title:item?`Modifier ${item.code}`:'Nouveau repère', description:'Le workflow est généré automatiquement selon la typologie.', submitLabel:item?'Enregistrer':'Créer le repère', wide:true, body:`<div class="form-grid form-grid--2">
+      ${fieldInput('Code repère','code',item?.code || nextRepereCode(),'text',true)}
+      ${fieldSelect('Affaire','affairId',state.affaires.filter(a=>a.companyId===state.settings.companyId).map(a=>[a.id,`${a.ref} — ${a.name}`]),item?.affairId || defaultAffair,true)}
+      ${fieldSelect('Typologie','workflowId',state.workflows.filter(w=>w.companyId===state.settings.companyId).map(w=>[w.id,`${w.code} — ${w.name}`]),item?.workflowId || state.workflows.find(w=>w.companyId===state.settings.companyId)?.id,true)}
+      ${fieldInput('Zone / emplacement','zone',item?.zone || '','text',true)}
+      ${fieldInput('Dimensions','dimensions',item?.dimensions || '','text',false)}
+      ${fieldSelect('Statut','status',[['planned','À préparer'],['in_progress','En cours'],['blocked','Bloqué'],['done','Terminé']],item?.status || 'planned',true)}
+      ${fieldSelect('Priorité','priority',[['normal','Normale'],['high','Haute'],['critical','Critique']],item?.priority || 'normal',true)}
+      <label class="field field--full"><span>Équipe affectée</span><div class="check-grid">${state.users.filter(u=>['Poseur','Conducteur de travaux','Études'].includes(u.role)).map(user=>`<label class="check-option"><input type="checkbox" name="assigneeIds" value="${user.id}" ${(item?.assigneeIds||[]).includes(user.id)?'checked':''}><span class="avatar avatar--tiny">${safe(user.initials)}</span><span>${safe(user.name)}<small>${safe(user.role)}</small></span></label>`).join('')}</div></label>
+    </div>` };
+  }
+
+  function interventionForm(id, context) {
+    const item = id ? getIntervention(id) : null;
+    const preselectedRepere = context.repereId || context.repere || '';
+    const affairId = item?.affairId || (preselectedRepere ? getRepere(preselectedRepere)?.affairId : state.settings.selectedAffaireId) || state.affaires[0]?.id;
+    return { eyebrow:item?'Modification':'Planification', title:item?'Modifier l’intervention':'Nouvelle intervention', description:'Planifiez une équipe, des repères et une check-list terrain.', submitLabel:item?'Enregistrer':'Planifier', wide:true, body:`<div class="form-grid form-grid--2">
+      ${fieldInput('Titre','title',item?.title || '','text',true)}
+      ${fieldSelect('Affaire','affairId',state.affaires.map(a=>[a.id,`${a.ref} — ${a.name}`]),affairId,true)}
+      ${fieldInput('Date','date',item?.date || '','date',false)}
+      <div class="field-pair">${fieldInput('Début','start',item?.start || '08:00','time',true)}${fieldInput('Fin','end',item?.end || '16:00','time',true)}</div>
+      ${fieldSelect('Type','type',[['releve','Relevé'],['pose','Pose'],['reglage','Réglage'],['sav','SAV'],['controle','Contrôle']],item?.type || 'pose',true)}
+      ${fieldSelect('Statut','status',[['unassigned','À affecter'],['planned','Planifiée'],['confirmed','Confirmée'],['in_progress','En cours'],['completed','Terminée']],item?.status || (item?.date?'planned':'unassigned'),true)}
+      ${fieldInput('Adresse','address',item?.address || getAffaire(affairId)?.address || '','text',false)}
+      ${fieldTextarea('Consignes','notes',item?.notes || '',false)}
+      <label class="field field--full"><span>Repères concernés</span><div class="check-grid check-grid--compact">${state.reperes.map(repere=>`<label class="check-option"><input type="checkbox" name="repereIds" value="${repere.id}" ${((item?.repereIds||[]).includes(repere.id)||repere.id===preselectedRepere)?'checked':''}><span class="product-code">${safe(repere.code)}</span><span>${safe(getWorkflow(repere.workflowId)?.name||'')}<small>${safe(getAffaire(repere.affairId)?.ref||'')}</small></span></label>`).join('')}</div></label>
+      <label class="field field--full"><span>Équipe</span><div class="check-grid">${state.users.filter(u=>['Poseur','Conducteur de travaux','Études'].includes(u.role)).map(user=>`<label class="check-option"><input type="checkbox" name="teamIds" value="${user.id}" ${(item?.teamIds||[]).includes(user.id)?'checked':''}><span class="avatar avatar--tiny">${safe(user.initials)}</span><span>${safe(user.name)}<small>${safe(user.role)}</small></span></label>`).join('')}</div></label>
+      ${fieldTextarea('Check-list, une ligne par élément','checklist',(item?.checklist||[]).map(c=>c.label).join('\n'),false,'field--full')}
+    </div>` };
+  }
+
+  function workflowForm(id) {
+    const item = id ? getWorkflow(id) : null;
+    return { eyebrow:item?'Modification':'Configuration', title:item?'Modifier le workflow':'Nouveau workflow', description:'Chaque ligne de phase suit le format Nom | Pondération.', submitLabel:item?'Enregistrer':'Créer le workflow', wide:true, body:`<div class="form-grid form-grid--2">
+      ${fieldInput('Code court','code',item?.code || '','text',true)}
+      ${fieldInput('Nom de la typologie','name',item?.name || '','text',true)}
+      ${fieldInput('Version','version',item?.version || 1,'number',true,'1')}
+      ${fieldSelect('Société','companyId',state.companies.map(company=>[company.id,company.name]),item?.companyId || state.settings.companyId,true)}
+      <label class="field"><span>État</span><select name="active"><option value="true" ${item?.active!==false?'selected':''}>Actif</option><option value="false" ${item?.active===false?'selected':''}>Inactif</option></select></label>
+      ${fieldTextarea('Phases et pondérations','phases',(item?.phases||[]).map(p=>`${p.name} | ${p.weight}`).join('\n') || 'Relevé | 10\nÉtude | 15\nValidation | 10\nCommande | 10\nFabrication | 20\nLivraison | 10\nPose | 20\nPV | 5',true,'field--full')}
+      <div class="form-hint field--full">La somme peut être différente de 100 : l’application normalise automatiquement le calcul d’avancement.</div>
+    </div>` };
+  }
+
+  function documentForm(id, context) {
+    const item = id ? state.documents.find(doc=>doc.id===id) : null;
+    return { eyebrow:item?'Modification':'Archivage', title:item?'Modifier le document':'Ajouter un document', description:'Cette maquette conserve les métadonnées localement, sans envoyer de fichier.', submitLabel:item?'Enregistrer':'Ajouter', body:`<div class="form-grid">
+      ${fieldInput('Nom du document','name',item?.name || '','text',true)}
+      ${fieldSelect('Catégorie','category',[['Plans','Plans'],['Validations','Validations'],['PV','PV'],['Notices','Notices'],['Photos','Photos'],['Commandes','Commandes'],['Autres','Autres']],item?.category || 'Plans',true)}
+      ${fieldSelect('Affaire','affairId',state.affaires.map(a=>[a.id,`${a.ref} — ${a.name}`]),item?.affairId || context.affairId || state.settings.selectedAffaireId,true)}
+      ${fieldSelect('Repère lié','repereId',[['','Aucun repère'],...state.reperes.map(r=>[r.id,`${r.code} — ${getWorkflow(r.workflowId)?.name||''}`])],item?.repereId || context.repereId || '',false)}
+      ${fieldInput('Taille simulée en octets','size',item?.size || 0,'number',false,'1')}
+    </div>` };
+  }
+
+  function blockageForm(repereId) {
+    return { eyebrow:'Signalement', title:'Nouveau blocage', description:'Identifiez le responsable, l’échéance et l’impact.', submitLabel:'Ajouter le blocage', body:`<div class="form-grid">
+      ${fieldSelect('Repère','repereId',state.reperes.map(r=>[r.id,`${r.code} — ${getWorkflow(r.workflowId)?.name||''}`]),repereId || state.reperes[0]?.id,true)}
+      ${fieldInput('Titre','title','','text',true)}
+      ${fieldTextarea('Description','description','',true)}
+      ${fieldInput('Responsable de résolution','owner','','text',true)}
+      ${fieldInput('Échéance','dueDate','','date',false)}
+      ${fieldSelect('Criticité','priority',[['warning','À suivre'],['critical','Critique']], 'warning', true)}
+    </div>` };
+  }
+
+  function dolibarrInfoForm() {
+    return { eyebrow:'Intégration future', title:'Connexion Dolibarr', description:'Le cœur opérationnel reste indépendant de l’ERP.', submitLabel:'Fermer', body:`<div class="info-stack"><div class="info-card">${icon('download')}<div><strong>Données récupérées depuis Dolibarr</strong><p>Clients, contacts, devis, commandes, références, montants et commerciaux.</p></div></div><div class="info-card">${icon('upload')}<div><strong>Données remontées vers Dolibarr</strong><p>Avancement synthétique, nombre de repères bloqués, date de prochaine intervention et liens vers les PV.</p></div></div><div class="info-card">${icon('link')}<div><strong>Architecture prévue</strong><p>API REST, webhooks, identifiants externes et journal de synchronisation idempotent.</p></div></div></div>` };
+  }
+
+  function fieldInput(label, name, value, type='text', required=false, step='') {
+    return `<label class="field"><span>${safe(label)}${required?'<b>Requis</b>':''}</span><input name="${name}" type="${type}" value="${safe(value)}" ${required?'required':''} ${step?`step="${step}"`:''}></label>`;
+  }
+  function fieldTextarea(label, name, value, required=false, extraClass='') {
+    return `<label class="field ${extraClass}"><span>${safe(label)}${required?'<b>Requis</b>':''}</span><textarea name="${name}" rows="5" ${required?'required':''}>${safe(value)}</textarea></label>`;
+  }
+  function fieldSelect(label, name, options, selected, required=false) {
+    return `<label class="field"><span>${safe(label)}${required?'<b>Requis</b>':''}</span><select name="${name}" ${required?'required':''}>${options.map(([value,text])=>`<option value="${safe(value)}" ${String(value)===String(selected)?'selected':''}>${safe(text)}</option>`).join('')}</select></label>`;
+  }
+
+  function renderConfirmModal() {
+    if (!ui.confirm) {
+      confirmModal.className = 'modal modal--small';
+      confirmModal.setAttribute('aria-hidden','true');
+      confirmModal.innerHTML = '';
+      return;
+    }
+    confirmModal.className = 'modal modal--small is-open';
+    confirmModal.setAttribute('aria-hidden','false');
+    confirmModal.innerHTML = `<div class="modal__header"><div><span class="eyebrow">Confirmation</span><h2 id="confirmModalTitle">${safe(ui.confirm.title)}</h2><p>${safe(ui.confirm.description)}</p></div><button class="icon-button icon-button--soft modal__close" data-action="close-confirm" aria-label="Fermer">${icon('close')}</button></div><div class="modal__body"><div class="confirm-visual">${icon(ui.confirm.danger?'alert':'check')}</div><p class="confirm-copy">${safe(ui.confirm.detail || '')}</p></div><div class="modal__footer"><button class="secondary-button" data-action="close-confirm">Annuler</button><button class="${ui.confirm.danger?'danger-button':'primary-button'}" data-action="execute-confirm">${safe(ui.confirm.confirmLabel || 'Confirmer')}</button></div>`;
+  }
+
+  function renderSearchModal() {
+    if (!ui.searchOpen) {
+      searchModal.className = 'modal modal--search';
+      searchModal.setAttribute('aria-hidden','true');
+      searchModal.innerHTML = '';
+      return;
+    }
+    const results = searchEverything(ui.searchQuery);
+    searchModal.className = 'modal modal--search is-open';
+    searchModal.setAttribute('aria-hidden','false');
+    searchModal.innerHTML = `<div class="search-modal__bar">${icon('search')}<input id="searchModalInput" type="search" value="${safe(ui.searchQuery)}" placeholder="Rechercher partout…" autocomplete="off"><button class="icon-button icon-button--soft" data-action="close-search" aria-label="Fermer la recherche">${icon('close')}</button></div><div class="search-modal__body">${results.length ? results.slice(0,20).map(result=>`<button class="search-result" data-action="open-search-result" data-kind="${result.kind}" data-id="${result.id}"><span class="search-result__icon">${icon(result.icon)}</span><span><strong>${safe(result.title)}</strong><small>${safe(result.subtitle)}</small></span><span class="status-pill status-pill--neutral">${safe(result.label)}</span>${icon('chevron-right')}</button>`).join('') : emptyState('search','Aucun résultat','Essayez un code repère, une référence ou un nom de client.')}</div><div class="search-modal__footer"><span>Entrée pour ouvrir</span><span>Échap pour fermer</span></div>`;
+  }
+
+  function searchEverything(query) {
+    const q = String(query || '').trim().toLowerCase();
+    const all = [
+      ...state.affaires.map(item=>({kind:'affaire',id:item.id,icon:'briefcase',label:'Affaire',title:item.name,subtitle:`${item.ref} · ${getClient(item.clientId)?.name||''} · ${item.city}`})),
+      ...state.reperes.map(item=>({kind:'repere',id:item.id,icon:'boxes',label:'Repère',title:`${item.code} — ${getWorkflow(item.workflowId)?.name||''}`,subtitle:`${getAffaire(item.affairId)?.ref||''} · ${item.zone}`})),
+      ...state.interventions.map(item=>({kind:'intervention',id:item.id,icon:'calendar',label:'Intervention',title:item.title,subtitle:`${item.date?formatDate(item.date):'Non planifiée'} · ${getAffaire(item.affairId)?.name||''}`})),
+      ...state.documents.map(item=>({kind:'document',id:item.id,icon:'file',label:'Document',title:item.name,subtitle:`${item.category} · ${getAffaire(item.affairId)?.ref||''}`})),
+      ...state.workflows.map(item=>({kind:'workflow',id:item.id,icon:'flow',label:'Workflow',title:`${item.code} — ${item.name}`,subtitle:`Version ${item.version} · ${item.phases.length} phases`}))
+    ];
+    if (!q) return all.slice(0,10);
+    return all.filter(item=>`${item.title} ${item.subtitle} ${item.label}`.toLowerCase().includes(q));
+  }
+
+  function syncOverlay() {
+    const open = ui.drawerRepereId || ui.modal || ui.confirm || ui.searchOpen || ui.mobileNavOpen;
+    overlay.classList.toggle('is-visible', Boolean(open));
+    overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.body.classList.toggle('has-overlay', Boolean(open));
+  }
+
+  function afterRender() {
+    document.querySelectorAll('[data-filter]').forEach(select => {
+      select.value = ui.filters[select.dataset.filter] || 'all';
+    });
+    bindDragAndDrop();
+    if (ui.searchOpen) requestAnimationFrame(() => document.getElementById('searchModalInput')?.focus());
+    if (ui.modal) requestAnimationFrame(() => entityModal.querySelector('input,select,textarea')?.focus());
+  }
+
+  function bindDragAndDrop() {
+    document.querySelectorAll('[data-drag-repere]').forEach(card => {
+      card.addEventListener('dragstart', event => { event.dataTransfer.setData('text/repere', card.dataset.dragRepere); card.classList.add('is-dragging'); });
+      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
+    });
+    document.querySelectorAll('[data-drop-status]').forEach(lane => {
+      lane.addEventListener('dragover', event => { if (event.dataTransfer.types.includes('text/repere')) { event.preventDefault(); lane.classList.add('is-drop-target'); } });
+      lane.addEventListener('dragleave', () => lane.classList.remove('is-drop-target'));
+      lane.addEventListener('drop', event => {
+        event.preventDefault(); lane.classList.remove('is-drop-target');
+        const id = event.dataTransfer.getData('text/repere');
+        if (id) updateState(s => { const repere = s.reperes.find(r=>r.id===id); if (repere) repere.status = lane.dataset.dropStatus; }, 'Statut du repère mis à jour.');
+      });
+    });
+    document.querySelectorAll('[data-drag-intervention]').forEach(card => {
+      card.addEventListener('dragstart', event => { event.dataTransfer.setData('text/intervention', card.dataset.dragIntervention); card.classList.add('is-dragging'); });
+      card.addEventListener('dragend', () => card.classList.remove('is-dragging'));
+    });
+    document.querySelectorAll('[data-drop-date]').forEach(day => {
+      day.addEventListener('dragover', event => { if (event.dataTransfer.types.includes('text/intervention')) { event.preventDefault(); day.classList.add('is-drop-target'); } });
+      day.addEventListener('dragleave', () => day.classList.remove('is-drop-target'));
+      day.addEventListener('drop', event => {
+        event.preventDefault(); day.classList.remove('is-drop-target');
+        const id = event.dataTransfer.getData('text/intervention');
+        const date = day.dataset.dropDate;
+        if (id) updateState(s => { const item = s.interventions.find(i=>i.id===id); if (item) { item.date = date; item.status = date ? (item.teamIds?.length ? 'planned' : 'unassigned') : 'unassigned'; } }, date ? 'Intervention déplacée dans le planning.' : 'Intervention remise à planifier.');
+      });
+    });
+  }
+
+  function handleClick(event) {
+    const target = event.target.closest('[data-action]');
+    if (!target) {
+      if (!event.target.closest('.popover-wrap')) closePopovers(false);
+      return;
+    }
+    const action = target.dataset.action;
+    const id = target.dataset.id;
+    const type = target.dataset.type;
+
+    const actions = {
+      navigate: () => navigate(target.dataset.page),
+      'toggle-sidebar': toggleSidebar,
+      'toggle-mobile-nav': () => { ui.mobileNavOpen = !ui.mobileNavOpen; render(); },
+      'toggle-company': () => { ui.companyOpen = !ui.companyOpen; ui.notificationsOpen=false; ui.quickCreateOpen=false; render(); },
+      'select-company': () => updateState(s=>{s.settings.companyId=id; const first=s.affaires.find(a=>a.companyId===id); if(first)s.settings.selectedAffaireId=first.id;}, `${getCompany(id)?.name} est maintenant active.`),
+      'toggle-theme': () => updateState(s=>{s.s
