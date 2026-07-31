@@ -1,0 +1,149 @@
+ng></div><div class="progress-track progress-track--light"><span style="width:${progress}%"></span></div></div>`;
+  }
+
+  function blockageRow(item) {
+    return `<button class="blockage-row" data-action="open-repere" data-id="${item.repere.id}"><span class="severity severity--${item.priority}">${icon('alert')}</span><span class="blockage-row__copy"><strong>${safe(item.repere.code)} · ${safe(item.title)}</strong><small>${safe(item.description)}</small><span>Responsable : ${safe(item.owner)} · échéance ${formatDate(item.dueDate, {day:'2-digit', month:'short'})}</span></span><span class="status-pill status-pill--${item.priority === 'critical' ? 'danger' : 'warning'}">${item.priority === 'critical' ? 'Critique' : 'À suivre'}</span></button>`;
+  }
+
+  function renderMatrix(reperes) {
+    if (!reperes.length) return emptyState('boxes','Aucun repère','Ajoutez un repère à cette affaire.');
+    const labels = ['Relevé','Étude','Validation','Commande','Fabrication','Livraison','Pose','Réglage','PV'];
+    return `<div class="table-scroll"><table class="data-table matrix-table"><thead><tr><th>Repère</th>${labels.map(label => `<th>${label}</th>`).join('')}<th>Avancement</th></tr></thead><tbody>${reperes.map(repere => {
+      const workflow = getWorkflow(repere.workflowId);
+      const phaseMap = new Map((workflow?.phases || []).map((phase,index)=>[normalizePhase(phase.name), index]));
+      return `<tr data-action="open-repere" data-id="${repere.id}" tabindex="0"><td><div class="product-cell"><span class="product-code">${safe(repere.code)}</span><span><strong>${safe(workflow?.name || 'Ouvrage')}</strong><small>${safe(repere.zone)}</small></span></div></td>${labels.map(label => matrixStateCell(repere, phaseMap.get(normalizePhase(label)))).join('')}<td><div class="table-progress"><div class="progress-track progress-track--light"><span style="width:${repereProgress(repere)}%"></span></div><strong>${repereProgress(repere)}%</strong></div></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  }
+
+  function normalizePhase(value) {
+    return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace('parametrage','reglage').replace('mise en service','pv').replace('essais','reglage');
+  }
+
+  function matrixStateCell(repere, index) {
+    if (index === undefined) return `<td><span class="phase-state phase-state--na">—</span></td>`;
+    if (index < repere.phaseIndex || repere.status === 'done') return `<td><span class="phase-state phase-state--done" title="Terminé">${icon('check')}</span></td>`;
+    if (index === repere.phaseIndex) {
+      if (repere.status === 'blocked') return `<td><span class="phase-state phase-state--blocked" title="Bloqué">${icon('alert')}</span></td>`;
+      if (repere.status === 'planned') return `<td><span class="phase-state phase-state--planned" title="Planifié">${icon('calendar')}</span></td>`;
+      return `<td><span class="phase-state phase-state--active" title="En cours"><span></span></span></td>`;
+    }
+    return `<td><span class="phase-state phase-state--waiting" title="En attente"></span></td>`;
+  }
+
+  function interventionCompactRow(item) {
+    const affaire = getAffaire(item.affairId);
+    return `<button class="compact-row" data-action="open-intervention" data-id="${item.id}"><span class="date-tile"><strong>${formatDate(item.date,{day:'2-digit'})}</strong><small>${formatDate(item.date,{month:'short'})}</small></span><span class="compact-row__copy"><strong>${safe(item.title)}</strong><small>${safe(affaire?.name || '')} · ${safe(item.start)}–${safe(item.end)}</small></span><span class="status-pill status-pill--${statusTone(item.status)}">${statusLabel(item.status)}</span></button>`;
+  }
+
+  function activityRow(item) {
+    return `<div class="activity-row"><span class="activity-row__marker activity-row__marker--${item.type}">${icon(item.type === 'danger' ? 'alert' : item.type === 'success' ? 'check' : 'clock')}</span><span><strong>${safe(item.text)}</strong><small>${safe(item.meta)}</small></span></div>`;
+  }
+
+  function renderAffaires() {
+    const filtered = state.affaires
+      .filter(item => item.companyId === state.settings.companyId)
+      .filter(item => ui.filters.affairStatus === 'all' || item.status === ui.filters.affairStatus);
+    return `${pageHeading('Affaires', 'Suivez chaque opération, son avancement et ses risques.', `<button class="secondary-button" data-action="export-csv" data-export="affaires">${icon('download')}Exporter</button><button class="primary-button" data-action="open-form" data-type="affaire">${icon('plus')}Nouvelle affaire</button>`)}
+      <div class="toolbar"><div class="toolbar__group"><label class="select-control"><span>Statut</span><select data-filter="affairStatus"><option value="all">Tous</option><option value="active">Actives</option><option value="warning">À surveiller</option><option value="completed">Terminées</option><option value="archived">Archivées</option></select></label></div><span class="toolbar__result">${filtered.length} affaire${filtered.length > 1 ? 's' : ''}</span></div>
+      <div class="affaire-grid">${filtered.length ? filtered.map(renderAffaireCard).join('') : emptyState('briefcase','Aucune affaire','Modifiez le filtre ou créez une nouvelle affaire.')}</div>`;
+  }
+
+  function renderAffaireCard(affaire) {
+    const client = getClient(affaire.clientId);
+    const manager = getUser(affaire.managerId);
+    const company = getCompany(affaire.companyId);
+    const reperes = state.reperes.filter(item => item.affairId === affaire.id);
+    const progress = affaireProgress(affaire.id);
+    const blocks = reperes.reduce((sum,item)=>sum+(item.blockages||[]).filter(block=>!block.resolved).length,0);
+    return `<article class="affaire-card">
+      <div class="affaire-card__head"><span class="client-mark" style="--company-color:${company?.color}">${safe(initials(client?.name))}</span><span class="status-pill status-pill--${affaire.status === 'warning' ? 'warning' : affaire.status === 'completed' ? 'success' : affaire.status === 'archived' ? 'neutral' : 'info'}">${affaireStatusLabel(affaire.status)}</span></div>
+      <button class="affaire-card__main" data-action="open-affaire" data-id="${affaire.id}"><span class="eyebrow">${safe(affaire.ref)}</span><h2>${safe(affaire.name)}</h2><p>${icon('map-pin')}${safe(affaire.city)} · ${safe(client?.name || '')}</p></button>
+      <div class="affaire-card__progress"><div><span>Avancement</span><strong>${progress}%</strong></div><div class="progress-track progress-track--light"><span style="width:${progress}%"></span></div></div>
+      <div class="affaire-card__stats"><div><span>Repères</span><strong>${reperes.length}</strong></div><div><span>Blocages</span><strong class="${blocks ? 'text-danger' : ''}">${blocks}</strong></div><div><span>Échéance</span><strong>${formatDate(affaire.dueDate,{day:'2-digit',month:'short'})}</strong></div></div>
+      <div class="affaire-card__footer"><span class="user-inline"><span class="avatar avatar--small">${safe(manager?.initials || 'A3')}</span>${safe(manager?.name || 'Non affecté')}</span><div class="inline-actions"><button class="icon-button icon-button--ghost" data-action="duplicate-affaire" data-id="${affaire.id}" aria-label="Dupliquer">${icon('copy')}</button><button class="icon-button icon-button--ghost" data-action="open-form" data-type="affaire" data-id="${affaire.id}" aria-label="Modifier">${icon('edit')}</button><button class="icon-button icon-button--ghost icon-button--danger" data-action="confirm-delete" data-type="affaire" data-id="${affaire.id}" aria-label="Supprimer">${icon('trash')}</button></div></div>
+    </article>`;
+  }
+
+  function renderReperes() {
+    const companyAffairIds = new Set(state.affaires.filter(item => item.companyId === state.settings.companyId).map(item => item.id));
+    const filtered = state.reperes
+      .filter(item => companyAffairIds.has(item.affairId))
+      .filter(item => ui.filters.repereAffair === 'all' || item.affairId === ui.filters.repereAffair)
+      .filter(item => ui.filters.repereWorkflow === 'all' || item.workflowId === ui.filters.repereWorkflow);
+    return `${pageHeading('Repères', 'Chaque ouvrage possède son workflow, ses phases, ses responsables et ses blocages.', `<button class="secondary-button" data-action="export-csv" data-export="reperes">${icon('download')}Exporter</button><button class="primary-button" data-action="open-form" data-type="repere">${icon('plus')}Nouveau repère</button>`)}
+      <div class="toolbar toolbar--wrap"><div class="toolbar__group"><label class="select-control"><span>Affaire</span><select data-filter="repereAffair"><option value="all">Toutes</option>${state.affaires.filter(item=>item.companyId===state.settings.companyId).map(item=>`<option value="${item.id}">${safe(item.ref)} — ${safe(item.name)}</option>`).join('')}</select></label><label class="select-control"><span>Typologie</span><select data-filter="repereWorkflow"><option value="all">Toutes</option>${state.workflows.filter(item=>item.companyId===state.settings.companyId).map(item=>`<option value="${item.id}">${safe(item.code)} — ${safe(item.name)}</option>`).join('')}</select></label></div><div class="segmented"><button class="${state.settings.repereView === 'kanban' ? 'is-active' : ''}" data-action="set-repere-view" data-view="kanban">${icon('kanban')}Kanban</button><button class="${state.settings.repereView === 'list' ? 'is-active' : ''}" data-action="set-repere-view" data-view="list">${icon('list')}Liste</button></div></div>
+      ${state.settings.repereView === 'kanban' ? renderRepereKanban(filtered) : renderRepereList(filtered)}`;
+  }
+
+  function renderRepereKanban(items) {
+    const lanes = [
+      { status:'planned', label:'À préparer', tone:'neutral' },
+      { status:'in_progress', label:'En cours', tone:'info' },
+      { status:'blocked', label:'Bloqués', tone:'danger' },
+      { status:'done', label:'Terminés', tone:'success' }
+    ];
+    return `<div class="kanban-board">${lanes.map(lane => {
+      const cards = items.filter(item => item.status === lane.status);
+      return `<section class="kanban-lane" data-drop-status="${lane.status}"><div class="kanban-lane__head"><div><span class="lane-dot lane-dot--${lane.tone}"></span><strong>${lane.label}</strong></div><span>${cards.length}</span></div><div class="kanban-lane__body">${cards.length ? cards.map(renderRepereCard).join('') : `<div class="lane-empty">Déposez un repère ici</div>`}</div></section>`;
+    }).join('')}</div>`;
+  }
+
+  function renderRepereCard(repere) {
+    const workflow = getWorkflow(repere.workflowId);
+    const affaire = getAffaire(repere.affairId);
+    const activeBlock = (repere.blockages || []).find(item => !item.resolved);
+    const phase = workflow?.phases[repere.phaseIndex];
+    return `<article class="repere-card" draggable="true" data-drag-repere="${repere.id}" data-action="open-repere" data-id="${repere.id}">
+      <div class="repere-card__head"><span class="product-code">${safe(repere.code)}</span><span class="priority-dot priority-dot--${repere.priority}" title="Priorité ${repere.priority}"></span></div>
+      <h3>${safe(workflow?.name || 'Ouvrage')}</h3><p>${safe(affaire?.name || '')}</p><small>${icon('map-pin')}${safe(repere.zone)}</small>
+      ${activeBlock ? `<div class="inline-alert">${icon('alert')}<span>${safe(activeBlock.title)}</span></div>` : ''}
+      <div class="repere-card__phase"><span>${safe(phase?.name || 'Terminé')}</span><strong>${repereProgress(repere)}%</strong></div><div class="progress-track progress-track--light"><span style="width:${repereProgress(repere)}%"></span></div>
+      <div class="repere-card__footer"><div class="avatar-stack">${(repere.assigneeIds || []).slice(0,3).map(id => `<span class="avatar avatar--tiny">${safe(getUser(id)?.initials || 'A3')}</span>`).join('')}${!repere.assigneeIds?.length ? '<span class="muted-label">Non affecté</span>' : ''}</div><button class="icon-button icon-button--ghost" data-action="open-repere" data-id="${repere.id}" aria-label="Ouvrir">${icon('chevron-right')}</button></div>
+    </article>`;
+  }
+
+  function renderRepereList(items) {
+    if (!items.length) return emptyState('boxes','Aucun repère','Modifiez les filtres ou créez un repère.');
+    return `<div class="panel"><div class="table-scroll"><table class="data-table"><thead><tr><th>Repère</th><th>Affaire</th><th>Phase actuelle</th><th>Équipe</th><th>Statut</th><th>Avancement</th><th></th></tr></thead><tbody>${items.map(repere => {
+      const workflow = getWorkflow(repere.workflowId); const affaire = getAffaire(repere.affairId); const phase = workflow?.phases[repere.phaseIndex];
+      return `<tr data-action="open-repere" data-id="${repere.id}" tabindex="0"><td><div class="product-cell"><span class="product-code">${safe(repere.code)}</span><span><strong>${safe(workflow?.name || '')}</strong><small>${safe(repere.zone)}</small></span></div></td><td><strong>${safe(affaire?.ref || '')}</strong><small class="table-subtitle">${safe(affaire?.name || '')}</small></td><td>${safe(phase?.name || 'Terminé')}</td><td><div class="avatar-stack">${(repere.assigneeIds || []).map(id=>`<span class="avatar avatar--tiny">${safe(getUser(id)?.initials || '')}</span>`).join('')}</div></td><td><span class="status-pill status-pill--${statusTone(repere.status)}">${statusLabel(repere.status)}</span></td><td><div class="table-progress"><div class="progress-track progress-track--light"><span style="width:${repereProgress(repere)}%"></span></div><strong>${repereProgress(repere)}%</strong></div></td><td><button class="icon-button icon-button--ghost">${icon('chevron-right')}</button></td></tr>`;
+    }).join('')}</tbody></table></div></div>`;
+  }
+
+  function renderPlanning() {
+    const start = startOfWeek(addDays(new Date(), state.settings.planningWeekOffset * 7));
+    const days = Array.from({length: 7}, (_, index) => addDays(start, index));
+    const dated = state.interventions.filter(item => item.date);
+    const unassigned = state.interventions.filter(item => !item.date || item.status === 'unassigned');
+    return `${pageHeading('Planning des équipes', 'Planifiez les interventions, affectez les équipes et déplacez les cartes par glisser-déposer.', `<button class="primary-button" data-action="open-form" data-type="intervention">${icon('plus')}Nouvelle intervention</button>`)}
+      <div class="planning-toolbar"><div class="week-navigation"><button class="icon-button icon-button--soft" data-action="change-week" data-offset="-1" aria-label="Semaine précédente">${icon('chevron-left')}</button><button class="secondary-button" data-action="current-week">Cette semaine</button><button class="icon-button icon-button--soft" data-action="change-week" data-offset="1" aria-label="Semaine suivante">${icon('chevron-right')}</button></div><strong>${formatDate(days[0].toISOString(),{day:'2-digit',month:'long'})} — ${formatDate(days[6].toISOString(),{day:'2-digit',month:'long',year:'numeric'})}</strong></div>
+      <div class="planning-layout">
+        <section class="panel planning-board"><div class="planning-days">${days.map(day => renderPlanningDay(day, dated)).join('')}</div></section>
+        <aside class="panel unassigned-panel"><div class="panel__header panel__header--compact"><div><h2>À planifier</h2><p>${unassigned.length} intervention${unassigned.length>1?'s':''}</p></div><button class="icon-button icon-button--soft" data-action="open-form" data-type="intervention">${icon('plus')}</button></div><div class="unassigned-list" data-drop-date="">${unassigned.length ? unassigned.map(item => renderPlanningCard(item,true)).join('') : emptyState('check','Tout est planifié','Aucune intervention en attente.')}</div></aside>
+      </div>`;
+  }
+
+  function renderPlanningDay(day, interventions) {
+    const iso = day.toISOString().slice(0,10);
+    const items = interventions.filter(item => item.date === iso).sort((a,b)=>a.start.localeCompare(b.start));
+    const isToday = iso === todayISO();
+    return `<div class="planning-day ${isToday ? 'is-today' : ''}" data-drop-date="${iso}"><div class="planning-day__head"><span>${formatDate(iso,{weekday:'short'})}</span><strong>${formatDate(iso,{day:'2-digit'})}</strong></div><div class="planning-day__body">${items.map(item => renderPlanningCard(item,false)).join('')}${!items.length ? '<div class="day-empty">Disponible</div>' : ''}</div></div>`;
+  }
+
+  function renderPlanningCard(item, unassigned) {
+    const affaire = getAffaire(item.affairId);
+    return `<article class="planning-card planning-card--${item.type}" draggable="true" data-drag-intervention="${item.id}" data-action="open-intervention" data-id="${item.id}"><div class="planning-card__time">${unassigned ? 'Non datée' : `${safe(item.start)}–${safe(item.end)}`}</div><strong>${safe(item.title)}</strong><small>${safe(affaire?.ref || '')} · ${safe(affaire?.city || '')}</small><div class="planning-card__footer"><div class="avatar-stack">${(item.teamIds || []).map(id=>`<span class="avatar avatar--tiny">${safe(getUser(id)?.initials || '')}</span>`).join('')}${!item.teamIds?.length ? '<span class="muted-label">Équipe à définir</span>' : ''}</div><span class="status-pill status-pill--${statusTone(item.status)}">${statusLabel(item.status)}</span></div></article>`;
+  }
+
+  function renderInterventions() {
+    const filtered = state.interventions.filter(item => ui.filters.interventionStatus === 'all' || item.status === ui.filters.interventionStatus).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+    return `${pageHeading('Interventions', 'Préparez, exécutez et contrôlez chaque intervention terrain.', `<button class="secondary-button" data-action="export-csv" data-export="interventions">${icon('download')}Exporter</button><button class="primary-button" data-action="open-form" data-type="intervention">${icon('plus')}Nouvelle intervention</button>`)}
+      <div class="toolbar"><div class="segmented segmented--scroll"><button class="${ui.filters.interventionStatus==='all'?'is-active':''}" data-action="filter-interventions" data-status="all">Toutes</button>${['unassigned','planned','confirmed','in_progress','completed'].map(status=>`<button class="${ui.filters.interventionStatus===status?'is-active':''}" data-action="filter-interventions" data-status="${status}">${statusLabel(status)}</button>`).join('')}</div><span class="toolbar__result">${filtered.length} résultat${filtered.length>1?'s':''}</span></div>
+      <div class="intervention-layout"><section class="intervention-grid">${filtered.length ? filtered.map(renderInterventionCard).join('') : emptyState('calendar','Aucune intervention','Créez une intervention ou modifiez le filtre.')}</section>${renderMobilePreview(filtered.find(item=>item.status==='in_progress') || filtered[0])}</div>`;
+  }
+
+  function renderInterventionCard(item) {
+    const affaire = getAffaire(item.affairId);
+    const checklistDone = (item.checklist||[]).filter(c=>c.done).length;
+    return `<article class="intervention-card">
+      <button class="inte
