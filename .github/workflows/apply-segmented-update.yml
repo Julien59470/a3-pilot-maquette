@@ -1,0 +1,49 @@
+name: Appliquer la mise à jour segmentée A3 Pilot
+
+on:
+  push:
+    paths:
+      - update/manifest.txt
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruire et vérifier l'archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat update/part-* > /tmp/a3-update.zip.b64
+          base64 --decode /tmp/a3-update.zip.b64 > /tmp/a3-update.zip
+          echo "$(cat update/manifest.txt)  /tmp/a3-update.zip" | sha256sum --check --status
+          mkdir -p /tmp/a3-update
+          unzip -q /tmp/a3-update.zip -d /tmp/a3-update
+          test -f /tmp/a3-update/a3-pilot-maquette/index.html
+          test -f /tmp/a3-update/a3-pilot-maquette/chunks/app-07.part
+          node --check <(cat /tmp/a3-update/a3-pilot-maquette/chunks/app-*.part)
+
+      - name: Appliquer la version validée
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete --exclude='.git/' /tmp/a3-update/a3-pilot-maquette/ ./
+
+      - name: Publier la correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'Corriger les vues et permissions par rôle'
+          git push
