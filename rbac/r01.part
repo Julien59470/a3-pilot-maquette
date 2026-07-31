@@ -1,0 +1,132 @@
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'a3pilot.maquette.v4';
+  const APP_VERSION = 4;
+  const DATE_LOCALE = 'fr-FR';
+
+  const icon = (name, className = '') => `<svg class="icon ${className}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  const uid = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  const todayISO = () => new Date().toISOString().slice(0, 10);
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const safe = (value = '') => String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
+  const seed = {
+    version: APP_VERSION,
+    settings: {
+      theme: 'light',
+      compact: false,
+      sidebarCollapsed: false,
+      companyId: 'company_a3f',
+      role: 'direction',
+      currentPage: 'dashboard',
+      selectedAffaireId: 'aff_lidl',
+      planningWeekOffset: 0,
+      repereView: 'kanban'
+    },
+    companies: [
+      { id: 'company_a3f', code: 'A3F', name: 'A3 Fermetures', color: '#e4293f' },
+      { id: 'company_a3m', code: 'A3M', name: 'A3 Métallerie', color: '#1572a9' },
+      { id: 'company_buro', code: 'BD', name: 'BuroDiff', color: '#7554a8' }
+    ],
+    users: [
+      { id: 'usr_remy', initials: 'RF', name: 'Rémy F.', role: 'Direction', email: 'remy@a3.local' },
+      { id: 'usr_marc', initials: 'ML', name: 'Marc L.', role: 'Conducteur de travaux', email: 'marc@a3.local' },
+      { id: 'usr_sarah', initials: 'SB', name: 'Sarah B.', role: 'Planification', email: 'sarah@a3.local' },
+      { id: 'usr_nico', initials: 'ND', name: 'Nicolas D.', role: 'Poseur', email: 'nicolas@a3.local' },
+      { id: 'usr_amine', initials: 'AK', name: 'Amine K.', role: 'Poseur', email: 'amine@a3.local' },
+      { id: 'usr_lucas', initials: 'LV', name: 'Lucas V.', role: 'Études', email: 'lucas@a3.local' }
+    ],
+    clients: [
+      { id: 'cli_lidl', name: 'LIDL', contact: 'Claire Martin', email: 'claire.martin@client.local', phone: '03 00 00 00 01' },
+      { id: 'cli_auchan', name: 'Auchan Retail', contact: 'Thomas Leroy', email: 'thomas.leroy@client.local', phone: '03 00 00 00 02' },
+      { id: 'cli_ardcelor', name: 'ArcelorMittal', contact: 'Sophie Legrand', email: 'sophie.legrand@client.local', phone: '03 00 00 00 03' },
+      { id: 'cli_cd62', name: 'Département du Pas-de-Calais', contact: 'Julien Robert', email: 'julien.robert@client.local', phone: '03 00 00 00 04' }
+    ],
+    workflows: [
+      {
+        id: 'wf_ps', code: 'PS', name: 'Porte sectionnelle', version: 3, companyId: 'company_a3f', active: true,
+        phases: [
+          { id: 'releve', name: 'Relevé', weight: 5 },
+          { id: 'etude', name: 'Étude', weight: 10 },
+          { id: 'validation', name: 'Validation', weight: 10 },
+          { id: 'commande', name: 'Commande', weight: 10 },
+          { id: 'fabrication', name: 'Fabrication', weight: 20 },
+          { id: 'livraison', name: 'Livraison', weight: 10 },
+          { id: 'pose', name: 'Pose', weight: 25 },
+          { id: 'reglage', name: 'Réglage', weight: 5 },
+          { id: 'pv', name: 'PV', weight: 5 }
+        ]
+      },
+      {
+        id: 'wf_rm', code: 'RM', name: 'Rideau métallique', version: 2, companyId: 'company_a3f', active: true,
+        phases: [
+          { id: 'releve', name: 'Relevé', weight: 7 },
+          { id: 'etude', name: 'Étude', weight: 10 },
+          { id: 'validation', name: 'Validation', weight: 10 },
+          { id: 'commande', name: 'Commande', weight: 12 },
+          { id: 'fabrication', name: 'Fabrication', weight: 23 },
+          { id: 'livraison', name: 'Livraison', weight: 10 },
+          { id: 'pose', name: 'Pose', weight: 23 },
+          { id: 'pv', name: 'PV', weight: 5 }
+        ]
+      },
+      {
+        id: 'wf_pa', code: 'PA', name: 'Porte automatique', version: 4, companyId: 'company_a3f', active: true,
+        phases: [
+          { id: 'releve', name: 'Relevé', weight: 5 },
+          { id: 'etude', name: 'Étude', weight: 10 },
+          { id: 'validation', name: 'Validation', weight: 8 },
+          { id: 'commande', name: 'Commande', weight: 10 },
+          { id: 'fabrication', name: 'Fabrication', weight: 17 },
+          { id: 'livraison', name: 'Livraison', weight: 10 },
+          { id: 'pose', name: 'Pose', weight: 20 },
+          { id: 'parametrage', name: 'Paramétrage', weight: 10 },
+          { id: 'mise_service', name: 'Mise en service', weight: 5 },
+          { id: 'pv', name: 'PV', weight: 5 }
+        ]
+      },
+      {
+        id: 'wf_qn', code: 'QN', name: 'Quai niveleur', version: 2, companyId: 'company_a3f', active: true,
+        phases: [
+          { id: 'releve', name: 'Relevé', weight: 5 },
+          { id: 'etude', name: 'Étude', weight: 10 },
+          { id: 'validation', name: 'Validation', weight: 10 },
+          { id: 'commande', name: 'Commande', weight: 10 },
+          { id: 'fabrication', name: 'Fabrication', weight: 20 },
+          { id: 'livraison', name: 'Livraison', weight: 10 },
+          { id: 'pose', name: 'Pose', weight: 25 },
+          { id: 'essais', name: 'Essais', weight: 5 },
+          { id: 'pv', name: 'PV', weight: 5 }
+        ]
+      },
+      {
+        id: 'wf_es', code: 'ES', name: 'Escalier métallique', version: 1, companyId: 'company_a3m', active: true,
+        phases: [
+          { id: 'releve', name: 'Relevé', weight: 5 },
+          { id: 'conception', name: 'Conception', weight: 15 },
+          { id: 'validation', name: 'Validation', weight: 10 },
+          { id: 'fabrication', name: 'Fabrication', weight: 30 },
+          { id: 'traitement', name: 'Traitement', weight: 10 },
+          { id: 'livraison', name: 'Livraison', weight: 10 },
+          { id: 'pose', name: 'Pose', weight: 15 },
+          { id: 'reception', name: 'Réception', weight: 5 }
+        ]
+      }
+    ],
+    affaires: [
+      { id: 'aff_lidl', ref: 'AF-2026-0418', name: 'LIDL — Plateforme logistique', clientId: 'cli_lidl', companyId: 'company_a3f', city: 'Lens', address: '12 rue de la Logistique, 62300 Lens', managerId: 'usr_marc', dueDate: '2026-08-28', budget: 148000, status: 'active', dolibarrRef: 'CO2607-0418', createdAt: '2026-05-12' },
+      { id: 'aff_auchan', ref: 'AF-2026-0392', name: 'Auchan — Modernisation accès', clientId: 'cli_auchan', companyId: 'company_a3f', city: 'Arras', address: '8 avenue des Flandres, 62000 Arras', managerId: 'usr_marc', dueDate: '2026-09-18', budget: 86000, status: 'active', dolibarrRef: 'CO2606-0392', createdAt: '2026-04-30' },
+      { id: 'aff_arcelor', ref: 'AF-2026-0351', name: 'ArcelorMittal — Hall maintenance', clientId: 'cli_ardcelor', companyId: 'company_a3m', city: 'Dunkerque', address: 'Zone industrielle, 59140 Dunkerque', managerId: 'usr_lucas', dueDate: '2026-10-02', budget: 218000, status: 'active', dolibarrRef: 'CO2605-0351', createdAt: '2026-03-15' },
+      { id: 'aff_cd62', ref: 'AF-2026-0308', name: 'Centre technique départemental', clientId: 'cli_cd62', companyId: 'company_a3f', city: 'Béthune', address: '4 rue des Services, 62400 Béthune', managerId: 'usr_marc', dueDate: '2026-08-12', budget: 54000, status: 'warning', dolibarrRef: 'CO2604-0308', createdAt: '2026-02-26' }
+    ],
+    reperes: [
+      { id: 'rep_ps01', code: 'PS01', affairId: 'aff_lidl', workflowId: 'wf_ps', zone: 'Façade nord', dimensions: '4 000 × 4 500 mm', status: 'done', phaseIndex: 8, priority: 'normal', assigneeIds: ['usr_nico', 'usr_amine'], notes: [{ id: 'n1', text: 'PV signé et archivé.', authorId: 'usr_marc', date: '2026-07-22T10:15:00' }], blockages: [], createdAt: '2026-05-16' },
+      { id: 'rep_ps02', code: 'PS02', affairId: 'aff_lidl', workflowId: 'wf_ps', zone: 'Façade nord', dimensions: '4 000 × 4 500 mm', status: 'in_progress', phaseIndex: 6, priority: 'normal', assigneeIds: ['usr_nico', 'usr_amine'], notes: [], blockages: [], createdAt: '2026-05-16' },
+      { id: 'rep_ps03', code: 'PS03', affairId: 'aff_lidl', workflowId: 'wf_ps', zone: 'Façade est', dimensions: '3 500 × 4 000 mm', status: 'planned', phaseIndex: 5, priority: 'high', assigneeIds: ['usr_nico'], notes: [], blockages: [], createdAt: '2026-05-16' },
+      { id: 'rep_rm01', code: 'RM01', affairId: 'aff_lidl', workflowId: 'wf_rm', zone: 'Accès magasin', dimensions: '3 500 × 3 000 mm', status: 'blocked', phaseIndex: 4, priority: 'critical', assigneeIds: [], notes: [], blockages: [{ id: 'blk_rm01', title: 'Retard fournisseur', description: 'La date de sortie usine a été repoussée. Confirmation attendue.', owner: 'Fournisseur', dueDate: '2026-08-04', priority: 'critical', resolved: false, createdAt: '2026-07-25T08:00:00' }], createdAt: '2026-05-18' },
