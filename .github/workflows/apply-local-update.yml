@@ -1,0 +1,52 @@
+name: Appliquer la mise à jour A3 Pilot
+
+on:
+  push:
+    paths:
+      - update/a3-pilot-maquette.zip.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Décoder et extraire la version validée
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/a3-update
+          base64 --decode update/a3-pilot-maquette.zip.b64 > /tmp/a3-update.zip
+          unzip -q /tmp/a3-update.zip -d /tmp/a3-update
+          test -f /tmp/a3-update/a3-pilot-maquette/index.html
+          test -f /tmp/a3-update/a3-pilot-maquette/chunks/app-07.part
+
+      - name: Remplacer atomiquement les fichiers de la maquette
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='update/' \
+            --exclude='.github/workflows/apply-local-update.yml' \
+            /tmp/a3-update/a3-pilot-maquette/ ./
+          rm -rf update rbac
+          rm -f .github/workflows/apply-local-update.yml
+
+      - name: Publier la correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'Corriger les vues et permissions par rôle'
+          git push
