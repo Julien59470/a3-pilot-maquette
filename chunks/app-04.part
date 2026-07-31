@@ -1,0 +1,114 @@
+rvention-card__main" data-action="open-intervention" data-id="${item.id}"><span class="date-tile date-tile--large"><strong>${item.date ? formatDate(item.date,{day:'2-digit'}) : '—'}</strong><small>${item.date ? formatDate(item.date,{month:'short'}) : 'Date'}</small></span><span class="intervention-card__copy"><span class="status-pill status-pill--${statusTone(item.status)}">${statusLabel(item.status)}</span><h2>${safe(item.title)}</h2><p>${safe(affaire?.name || '')}</p><small>${icon('clock')}${safe(item.start)}–${safe(item.end)} · ${icon('map-pin')}${safe(affaire?.city || '')}</small></span></button>
+      <div class="intervention-card__meta"><div><span>Équipe</span><div class="avatar-stack">${(item.teamIds||[]).map(id=>`<span class="avatar avatar--tiny">${safe(getUser(id)?.initials || '')}</span>`).join('')}${!item.teamIds?.length?'<span class="muted-label">Non affectée</span>':''}</div></div><div><span>Check-list</span><strong>${checklistDone}/${(item.checklist||[]).length}</strong></div><div><span>Repères</span><strong>${(item.repereIds||[]).length}</strong></div></div>
+      <div class="intervention-card__actions">${item.status === 'confirmed' || item.status === 'planned' ? `<button class="secondary-button" data-action="start-intervention" data-id="${item.id}">${icon('tools')}Démarrer</button>` : ''}${item.status === 'in_progress' ? `<button class="primary-button" data-action="complete-intervention" data-id="${item.id}">${icon('check')}Terminer</button>` : ''}<button class="icon-button icon-button--ghost" data-action="open-form" data-type="intervention" data-id="${item.id}" aria-label="Modifier">${icon('edit')}</button><button class="icon-button icon-button--ghost icon-button--danger" data-action="confirm-delete" data-type="intervention" data-id="${item.id}" aria-label="Supprimer">${icon('trash')}</button></div>
+    </article>`;
+  }
+
+  function renderMobilePreview(item) {
+    if (!item) return '';
+    const affaire = getAffaire(item.affairId);
+    return `<aside class="phone-preview"><div class="phone-frame"><div class="phone-frame__header"><div><span class="brand__mark brand__mark--small">A3</span><small>Terrain</small></div><span class="status-pill status-pill--${statusTone(item.status)}">${statusLabel(item.status)}</span></div><div class="phone-frame__body"><span class="eyebrow">Intervention du jour</span><h2>${safe(item.title)}</h2><p>${safe(affaire?.name || '')}</p><div class="phone-info">${icon('map-pin')}<span>${safe(item.address || affaire?.address || '')}</span></div><div class="phone-info">${icon('clock')}<span>${safe(item.start)}–${safe(item.end)}</span></div><h3>Check-list</h3><div class="phone-checklist">${(item.checklist||[]).map(check => `<button data-action="toggle-checklist" data-intervention="${item.id}" data-check="${check.id}" class="phone-check ${check.done?'is-done':''}"><span>${check.done?icon('check'):''}</span>${safe(check.label)}</button>`).join('') || '<p class="muted-label">Aucune vérification définie.</p>'}</div>${item.status === 'in_progress' ? `<button class="primary-button primary-button--full" data-action="complete-intervention" data-id="${item.id}">${icon('check')}Clôturer l’intervention</button>` : `<button class="primary-button primary-button--full" data-action="start-intervention" data-id="${item.id}">${icon('tools')}Démarrer l’intervention</button>`}</div></div></aside>`;
+  }
+
+  function renderWorkflows() {
+    const workflows = state.workflows.filter(item => item.companyId === state.settings.companyId);
+    return `${pageHeading('Typologies et workflows', 'Configurez les cycles produits, les phases et leurs pondérations.', `<button class="primary-button" data-action="open-form" data-type="workflow">${icon('plus')}Nouveau workflow</button>`)}
+      <div class="workflow-grid">${workflows.length ? workflows.map(renderWorkflowCard).join('') : emptyState('flow','Aucun workflow','Créez une typologie pour générer automatiquement ses phases.')}</div>`;
+  }
+
+  function renderWorkflowCard(workflow) {
+    const useCount = state.reperes.filter(item => item.workflowId === workflow.id).length;
+    return `<article class="workflow-card"><div class="workflow-card__head"><span class="workflow-code">${safe(workflow.code)}</span><span class="status-pill status-pill--${workflow.active?'success':'neutral'}">${workflow.active?'Actif':'Inactif'}</span></div><h2>${safe(workflow.name)}</h2><p>Version ${workflow.version} · ${useCount} repère${useCount>1?'s':''}</p><div class="workflow-phases">${workflow.phases.map((phase,index)=>`<div class="workflow-phase"><span>${index+1}</span><strong>${safe(phase.name)}</strong><small>${phase.weight}%</small></div>`).join('')}</div><div class="workflow-card__footer"><strong>${workflow.phases.length} phases · ${workflow.phases.reduce((sum,phase)=>sum+Number(phase.weight||0),0)}% pondérés</strong><div class="inline-actions"><button class="icon-button icon-button--ghost" data-action="duplicate-workflow" data-id="${workflow.id}" aria-label="Dupliquer">${icon('copy')}</button><button class="icon-button icon-button--ghost" data-action="open-form" data-type="workflow" data-id="${workflow.id}" aria-label="Modifier">${icon('edit')}</button><button class="icon-button icon-button--ghost icon-button--danger" data-action="confirm-delete" data-type="workflow" data-id="${workflow.id}" aria-label="Supprimer">${icon('trash')}</button></div></div></article>`;
+  }
+
+  function renderDocuments() {
+    const categories = [...new Set(state.documents.map(item=>item.category))].sort();
+    const companyAffairIds = new Set(state.affaires.filter(item=>item.companyId===state.settings.companyId).map(item=>item.id));
+    const filtered = state.documents.filter(item=>companyAffairIds.has(item.affairId)).filter(item=>ui.filters.documentCategory==='all'||item.category===ui.filters.documentCategory);
+    return `${pageHeading('Documents', 'Centralisez les plans, validations, notices et procès-verbaux.', `<button class="secondary-button" data-action="trigger-file-upload">${icon('upload')}Importer des fichiers</button><button class="primary-button" data-action="open-form" data-type="document">${icon('plus')}Ajouter un document</button>`)}
+      <div class="toolbar"><label class="select-control"><span>Catégorie</span><select data-filter="documentCategory"><option value="all">Toutes</option>${categories.map(category=>`<option>${safe(category)}</option>`).join('')}</select></label><span class="toolbar__result">${filtered.length} document${filtered.length>1?'s':''}</span></div>
+      <div class="panel document-panel">${filtered.length ? `<div class="document-grid">${filtered.map(renderDocumentCard).join('')}</div>` : emptyState('file','Aucun document','Importez un fichier ou ajoutez un lien documentaire.')}</div>`;
+  }
+
+  function renderDocumentCard(documentItem) {
+    const affaire = getAffaire(documentItem.affairId);
+    const repere = getRepere(documentItem.repereId);
+    const author = getUser(documentItem.authorId);
+    return `<article class="document-card"><div class="document-card__icon">${icon('file')}</div><div class="document-card__copy"><span class="status-pill status-pill--info">${safe(documentItem.category)}</span><h3>${safe(documentItem.name)}</h3><p>${safe(affaire?.ref || '')}${repere ? ` · ${safe(repere.code)}` : ''}</p><small>${formatBytes(documentItem.size)} · ${formatDate(documentItem.createdAt)} · ${safe(author?.name || 'Utilisateur')}</small></div><div class="document-card__actions"><button class="icon-button icon-button--ghost" data-action="download-document" data-id="${documentItem.id}" aria-label="Télécharger la fiche">${icon('download')}</button><button class="icon-button icon-button--ghost" data-action="open-form" data-type="document" data-id="${documentItem.id}" aria-label="Modifier">${icon('edit')}</button><button class="icon-button icon-button--ghost icon-button--danger" data-action="confirm-delete" data-type="document" data-id="${documentItem.id}" aria-label="Supprimer">${icon('trash')}</button></div></article>`;
+  }
+
+  function renderSettings() {
+    return `${pageHeading('Paramètres de la maquette', 'Personnalisez l’expérience, exportez les données ou restaurez le jeu de démonstration.')}
+      <div class="settings-grid">
+        <section class="panel settings-card"><div class="panel__header"><div><h2>Interface</h2><p>Préférences persistées dans ce navigateur</p></div>${icon('settings')}</div><div class="settings-list">
+          <label class="setting-row"><span><strong>Thème sombre</strong><small>Réduit l’éblouissement et conserve les contrastes.</small></span><input type="checkbox" data-setting="theme" ${state.settings.theme==='dark'?'checked':''}><span class="switch"></span></label>
+          <label class="setting-row"><span><strong>Affichage compact</strong><small>Réduit les espacements sur les écrans denses.</small></span><input type="checkbox" data-setting="compact" ${state.settings.compact?'checked':''}><span class="switch"></span></label>
+          <label class="setting-row"><span><strong>Menu réduit sur ordinateur</strong><small>Conserve uniquement les icônes de navigation.</small></span><input type="checkbox" data-setting="sidebarCollapsed" ${state.settings.sidebarCollapsed?'checked':''}><span class="switch"></span></label>
+        </div></section>
+        <section class="panel settings-card"><div class="panel__header"><div><h2>Profil simulé</h2><p>Testez l’interface selon les métiers A3</p></div>${icon('user')}</div><div class="settings-form"><label class="field"><span>Rôle actif</span><select data-setting-select="role">${['direction','conducteur','planification','poseur','etudes'].map(role=>`<option value="${role}" ${role===state.settings.role?'selected':''}>${roleLabel(role)}</option>`).join('')}</select></label><div class="role-preview"><span class="avatar">RF</span><div><strong>Rémy F.</strong><small>${roleLabel(state.settings.role)} · droits simulés</small></div></div></div></section>
+        <section class="panel settings-card"><div class="panel__header"><div><h2>Données locales</h2><p>Toutes les modifications restent dans localStorage</p></div>${icon('download')}</div><div class="settings-actions"><button class="secondary-button" data-action="export-json">${icon('download')}Exporter une sauvegarde JSON</button><button class="secondary-button" data-action="trigger-import-json">${icon('upload')}Importer une sauvegarde</button><button class="danger-button" data-action="confirm-reset">${icon('refresh')}Restaurer les données de démonstration</button></div></section>
+        <section class="panel settings-card"><div class="panel__header"><div><h2>Intégration Dolibarr</h2><p>Préparation technique de la future synchronisation</p></div>${icon('link')}</div><div class="integration-card"><div><span class="integration-dot"></span><strong>Connecteur non activé</strong></div><p>Les identifiants externes, journaux de synchronisation et webhooks seront ajoutés lors de la phase d’intégration.</p><button class="secondary-button" data-action="dolibarr-info">Voir le périmètre prévu</button></div></section>
+      </div>`;
+  }
+
+  function renderDrawer() {
+    if (!ui.drawerRepereId) {
+      detailDrawer.className = 'drawer';
+      detailDrawer.setAttribute('aria-hidden','true');
+      detailDrawer.innerHTML = '';
+      return;
+    }
+    const repere = getRepere(ui.drawerRepereId);
+    if (!repere) { ui.drawerRepereId = null; renderDrawer(); return; }
+    const workflow = getWorkflow(repere.workflowId);
+    const affaire = getAffaire(repere.affairId);
+    const activeBlockages = (repere.blockages||[]).filter(item=>!item.resolved);
+    const interventions = state.interventions.filter(item=>(item.repereIds||[]).includes(repere.id));
+    detailDrawer.className = 'drawer is-open';
+    detailDrawer.setAttribute('aria-hidden','false');
+    detailDrawer.innerHTML = `<div class="drawer__header"><div><span class="eyebrow">Repère</span><h2>${safe(repere.code)}</h2><p>${safe(workflow?.name || '')} · ${safe(affaire?.ref || '')}</p></div><button class="icon-button icon-button--soft drawer__close" data-action="close-drawer" aria-label="Fermer le panneau">${icon('close')}</button></div>
+      <div class="drawer__body">
+        <section class="drawer-hero"><div class="drawer-hero__top"><div><span class="status-pill status-pill--${statusTone(repere.status)}">${statusLabel(repere.status)}</span><h3>${safe(repere.zone)}</h3><p>${safe(repere.dimensions || 'Dimensions non renseignées')}</p></div><div class="drawer-progress"><strong>${repereProgress(repere)}%</strong><span>avancement</span></div></div><div class="progress-track progress-track--light"><span style="width:${repereProgress(repere)}%"></span></div><dl><div><dt>Affaire</dt><dd>${safe(affaire?.name || '')}</dd></div><div><dt>Priorité</dt><dd>${priorityLabel(repere.priority)}</dd></div><div><dt>Équipe</dt><dd>${(repere.assigneeIds||[]).map(id=>safe(getUser(id)?.name||'')).join(', ') || 'Non affectée'}</dd></div><div><dt>Créé le</dt><dd>${formatDate(repere.createdAt)}</dd></div></dl></section>
+        ${activeBlockages.length ? `<section class="drawer-section"><div class="section-title"><div><h3>Blocages actifs</h3><p>${activeBlockages.length} action${activeBlockages.length>1?'s':''} requise${activeBlockages.length>1?'s':''}</p></div><button class="icon-button icon-button--soft" data-action="open-form" data-type="blockage" data-repere="${repere.id}" aria-label="Ajouter">${icon('plus')}</button></div>${activeBlockages.map(block=>`<div class="drawer-blockage"><div><span class="severity severity--${block.priority}">${icon('alert')}</span><div><strong>${safe(block.title)}</strong><p>${safe(block.description)}</p><small>Responsable : ${safe(block.owner)} · ${formatDate(block.dueDate)}</small></div></div><button class="secondary-button" data-action="resolve-blockage" data-repere="${repere.id}" data-id="${block.id}">${icon('check')}Résoudre</button></div>`).join('')}</section>` : ''}
+        <section class="drawer-section"><div class="section-title"><div><h3>Workflow</h3><p>${safe(workflow?.name || '')} · version ${workflow?.version || 1}</p></div><button class="secondary-button" data-action="advance-repere" data-id="${repere.id}" ${repere.status==='done'?'disabled':''}>Avancer la phase</button></div><div class="timeline">${(workflow?.phases||[]).map((phase,index)=>renderTimelineItem(repere,phase,index)).join('')}</div></section>
+        <section class="drawer-section"><div class="section-title"><div><h3>Interventions</h3><p>${interventions.length} intervention${interventions.length>1?'s':''}</p></div><button class="icon-button icon-button--soft" data-action="open-form" data-type="intervention" data-repere="${repere.id}" aria-label="Planifier">${icon('plus')}</button></div>${interventions.length ? `<div class="compact-list">${interventions.map(interventionCompactRow).join('')}</div>` : emptyState('calendar','Aucune intervention','Planifiez la prochaine opération terrain.')}</section>
+        <section class="drawer-section"><div class="section-title"><div><h3>Notes</h3><p>Historique conservé localement</p></div></div><form class="note-form" data-form="note" data-repere="${repere.id}"><input name="text" placeholder="Ajouter une note utile…" required><button class="primary-button" type="submit">Ajouter</button></form><div class="note-list">${(repere.notes||[]).length ? repere.notes.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(note=>`<div class="note-item"><span class="avatar avatar--tiny">${safe(getUser(note.authorId)?.initials||'A3')}</span><div><strong>${safe(getUser(note.authorId)?.name||'Utilisateur')}</strong><p>${safe(note.text)}</p><small>${formatDate(note.date,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</small></div><button class="icon-button icon-button--ghost icon-button--danger" data-action="delete-note" data-repere="${repere.id}" data-id="${note.id}" aria-label="Supprimer">${icon('trash')}</button></div>`).join('') : '<p class="empty-inline">Aucune note.</p>'}</div></section>
+      </div>
+      <div class="drawer__footer"><button class="secondary-button" data-action="open-form" data-type="repere" data-id="${repere.id}">${icon('edit')}Modifier</button><button class="danger-button" data-action="confirm-delete" data-type="repere" data-id="${repere.id}">${icon('trash')}Supprimer</button></div>`;
+  }
+
+  function renderTimelineItem(repere, phase, index) {
+    const isDone = index < repere.phaseIndex || repere.status === 'done';
+    const isCurrent = index === repere.phaseIndex && repere.status !== 'done';
+    const stateClass = isDone ? 'done' : isCurrent ? repere.status === 'blocked' ? 'blocked' : repere.status === 'planned' ? 'planned' : 'active' : 'waiting';
+    return `<button class="timeline-item timeline-item--${stateClass}" data-action="set-phase" data-id="${repere.id}" data-index="${index}"><span class="timeline-item__marker">${isDone?icon('check'):isCurrent&&repere.status==='blocked'?icon('alert'):''}</span><span><strong>${safe(phase.name)}</strong><small>${isDone?'Terminée':isCurrent?statusLabel(repere.status):'En attente'} · ${phase.weight}%</small></span></button>`;
+  }
+
+  function renderEntityModal() {
+    if (!ui.modal) {
+      entityModal.className = 'modal';
+      entityModal.setAttribute('aria-hidden','true');
+      entityModal.innerHTML = '';
+      return;
+    }
+    const { type, id, context = {} } = ui.modal;
+    const config = formConfig(type, id, context);
+    entityModal.className = `modal is-open ${config.wide ? 'modal--wide' : ''}`;
+    entityModal.setAttribute('aria-hidden','false');
+    entityModal.innerHTML = `<form id="entityForm" data-form="entity" data-type="${type}" data-id="${id || ''}"><div class="modal__header"><div><span class="eyebrow">${safe(config.eyebrow)}</span><h2 id="entityModalTitle">${safe(config.title)}</h2><p>${safe(config.description)}</p></div><button type="button" class="icon-button icon-button--soft modal__close" data-action="close-modal" aria-label="Fermer la fenêtre">${icon('close')}</button></div><div class="modal__body">${config.body}</div><div class="modal__footer"><button type="button" class="secondary-button" data-action="close-modal">Annuler</button><button type="submit" class="primary-button">${icon('check')}${safe(config.submitLabel)}</button></div></form>`;
+  }
+
+  function formConfig(type, id, context) {
+    if (type === 'affaire') return affaireForm(id);
+    if (type === 'repere') return repereForm(id, context);
+    if (type === 'intervention') return interventionForm(id, context);
+    if (type === 'workflow') return workflowForm(id);
+    if (type === 'document') return documentForm(id, context);
+    if (type === 'blockage') return blockageForm(context.repereId || context.repere);
+    if (type === 'dolibarr') return dolibarrInfoForm();
+    return { eyebrow:'Création', title:'Nouvel élément', description:'Complétez les informations.', submitLabel:'Enregistrer', body:'' };
+  }
+
+  function affaireForm(id) {
+    const item = id ? getAffaire(id) : null;
+    return { eyebrow
