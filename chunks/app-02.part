@@ -1,0 +1,265 @@
+d) {
+    const items = state.reperes.filter(item => item.affairId === affairId);
+    if (!items.length) return 0;
+    return Math.round(items.reduce((sum, item) => sum + repereProgress(item), 0) / items.length);
+  }
+
+  function globalProgress() {
+    const active = state.affaires.filter(item => item.status !== 'archived');
+    if (!active.length) return 0;
+    return Math.round(active.reduce((sum, item) => sum + affaireProgress(item.id), 0) / active.length);
+  }
+
+  function unresolvedBlockages() {
+    return state.reperes.flatMap(repere => (repere.blockages || [])
+      .filter(blockage => !blockage.resolved)
+      .map(blockage => ({ ...blockage, repere })));
+  }
+
+  function currentCompany() {
+    return getCompany(state.settings.companyId) || state.companies[0];
+  }
+
+  function navItems() {
+    return [
+      { page: 'dashboard', label: 'Pilotage', icon: 'grid' },
+      { page: 'affaires', label: 'Affaires', icon: 'building', count: state.affaires.length },
+      { page: 'reperes', label: 'Repères', icon: 'boxes', count: state.reperes.length },
+      { page: 'planning', label: 'Planning', icon: 'calendar' },
+      { page: 'interventions', label: 'Interventions', icon: 'tools', count: state.interventions.filter(item => item.status === 'unassigned').length },
+      { divider: true, label: 'Configuration' },
+      { page: 'workflows', label: 'Workflows', icon: 'flow' },
+      { page: 'documents', label: 'Documents', icon: 'file', count: state.documents.length },
+      { page: 'settings', label: 'Paramètres', icon: 'settings' }
+    ];
+  }
+
+  function render() {
+    document.documentElement.dataset.theme = state.settings.theme;
+    document.body.classList.toggle('is-compact', state.settings.compact);
+    const company = currentCompany();
+    const unread = state.notifications.filter(item => !item.read).length;
+    const currentPage = state.settings.currentPage;
+
+    app.innerHTML = `
+      <div class="app-shell ${state.settings.sidebarCollapsed ? 'sidebar-collapsed' : ''}">
+        <aside class="sidebar ${ui.mobileNavOpen ? 'is-open' : ''}" aria-label="Navigation principale">
+          <div class="sidebar__header">
+            <button class="brand" data-action="navigate" data-page="dashboard" aria-label="Ouvrir le pilotage">
+              <span class="brand__mark">A3</span>
+              <span class="brand__copy"><strong>GROUPE A3</strong><small>Pilotage opérationnel</small></span>
+            </button>
+            <button class="icon-button icon-button--ghost sidebar__collapse" data-action="toggle-sidebar" aria-label="${state.settings.sidebarCollapsed ? 'Déployer' : 'Réduire'} le menu">${icon(state.settings.sidebarCollapsed ? 'chevron-right' : 'chevron-left')}</button>
+          </div>
+          <nav class="sidebar__nav">
+            ${navItems().map(item => item.divider
+              ? `<div class="nav-section-label">${safe(item.label)}</div>`
+              : `<button class="nav-item ${currentPage === item.page ? 'is-active' : ''}" data-action="navigate" data-page="${item.page}" aria-current="${currentPage === item.page ? 'page' : 'false'}">
+                  ${icon(item.icon)}<span class="nav-item__label">${safe(item.label)}</span>${item.count ? `<span class="nav-count">${item.count}</span>` : ''}
+                </button>`).join('')}
+          </nav>
+          <div class="sidebar__footer">
+            <button class="sync-card" data-action="dolibarr-info">
+              <span class="sync-card__icon">${icon('link')}</span>
+              <span class="sync-card__copy"><strong>Dolibarr</strong><small>Connecteur prévu</small></span>
+              <span class="status-pill status-pill--planned">Plus tard</span>
+            </button>
+            <button class="user-card" data-action="navigate" data-page="settings">
+              <span class="avatar">RF</span>
+              <span class="user-card__copy"><strong>Rémy F.</strong><small>${safe(roleLabel(state.settings.role))}</small></span>
+              ${icon('chevron-right')}
+            </button>
+          </div>
+        </aside>
+
+        <main class="main-content">
+          <header class="topbar">
+            <button class="icon-button mobile-menu-button" data-action="toggle-mobile-nav" aria-label="Ouvrir le menu">${icon('menu')}</button>
+            <button class="search-trigger" data-action="open-search" aria-label="Ouvrir la recherche globale">
+              ${icon('search')}<span>Rechercher une affaire, un repère, un client</span><kbd>Ctrl K</kbd>
+            </button>
+            <div class="topbar__actions">
+              <div class="popover-wrap">
+                <button class="company-switcher" data-action="toggle-company" aria-expanded="${ui.companyOpen}">
+                  <span class="company-switcher__mark" style="--company-color:${company.color}">${safe(company.code)}</span>
+                  <span class="company-switcher__copy"><small>Société active</small><strong>${safe(company.name)}</strong></span>
+                  ${icon('chevron-down')}
+                </button>
+                ${ui.companyOpen ? renderCompanyPopover() : ''}
+              </div>
+              <button class="icon-button" data-action="toggle-theme" aria-label="Changer le thème">${icon(state.settings.theme === 'dark' ? 'sun' : 'moon')}</button>
+              <div class="popover-wrap">
+                <button class="icon-button notification-button" data-action="toggle-notifications" aria-label="Afficher les notifications">${icon('bell')}${unread ? `<span class="notification-count">${unread}</span>` : ''}</button>
+                ${ui.notificationsOpen ? renderNotificationPopover() : ''}
+              </div>
+              <div class="popover-wrap">
+                <button class="primary-button" data-action="toggle-quick-create">${icon('plus')}<span>Nouveau</span></button>
+                ${ui.quickCreateOpen ? renderQuickCreatePopover() : ''}
+              </div>
+            </div>
+          </header>
+
+          <div class="content-area">${renderPage(currentPage)}</div>
+        </main>
+
+        <nav class="mobile-bottom-nav" aria-label="Navigation mobile">
+          ${navItems().filter(item => item.page && ['dashboard','affaires','reperes','planning','interventions'].includes(item.page)).map(item => `
+            <button class="${currentPage === item.page ? 'is-active' : ''}" data-action="navigate" data-page="${item.page}">${icon(item.icon)}<span>${safe(item.label)}</span></button>`).join('')}
+        </nav>
+      </div>`;
+
+    syncOverlay();
+    renderDrawer();
+    renderEntityModal();
+    renderConfirmModal();
+    renderSearchModal();
+    afterRender();
+  }
+
+  function roleLabel(role) {
+    return ({ direction: 'Direction', conducteur: 'Conducteur', planification: 'Planification', poseur: 'Poseur', etudes: 'Études' })[role] || 'Direction';
+  }
+
+  function renderCompanyPopover() {
+    return `<div class="popover popover--company" role="menu">
+      <div class="popover__head"><div><strong>Changer de société</strong><small>Filtre toutes les vues</small></div><button class="icon-button icon-button--ghost" data-action="close-popovers" aria-label="Fermer">${icon('close')}</button></div>
+      ${state.companies.map(company => `<button class="company-option ${company.id === state.settings.companyId ? 'is-active' : ''}" data-action="select-company" data-id="${company.id}"><span class="company-option__mark" style="--company-color:${company.color}">${safe(company.code)}</span><span><strong>${safe(company.name)}</strong><small>${state.affaires.filter(item => item.companyId === company.id).length} affaires</small></span>${company.id === state.settings.companyId ? icon('check') : ''}</button>`).join('')}
+    </div>`;
+  }
+
+  function renderNotificationPopover() {
+    return `<div class="popover popover--notifications" role="dialog" aria-label="Notifications">
+      <div class="popover__head"><div><strong>Notifications</strong><small>${state.notifications.filter(item => !item.read).length} non lues</small></div><div class="inline-actions"><button class="text-button" data-action="mark-all-read">Tout lire</button><button class="icon-button icon-button--ghost" data-action="close-popovers" aria-label="Fermer">${icon('close')}</button></div></div>
+      <div class="notification-list">${state.notifications.length ? state.notifications.slice().sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(item => `
+        <button class="notification-item ${item.read ? '' : 'is-unread'}" data-action="open-notification" data-id="${item.id}">
+          <span class="notification-item__marker notification-item__marker--${item.type}">${icon(item.type === 'danger' ? 'alert' : item.type === 'warning' ? 'clock' : 'bell')}</span>
+          <span><strong>${safe(item.title)}</strong><small>${safe(item.text)}</small><time>${formatDate(item.createdAt, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</time></span>
+        </button>`).join('') : emptyState('bell','Aucune notification','Les alertes importantes apparaîtront ici.')}</div>
+    </div>`;
+  }
+
+  function renderQuickCreatePopover() {
+    const actions = [
+      ['affaire','briefcase','Nouvelle affaire','Créer une affaire opérationnelle'],
+      ['repere','boxes','Nouveau repère','Instancier un workflow produit'],
+      ['intervention','calendar','Nouvelle intervention','Planifier une équipe terrain'],
+      ['blockage','alert','Nouveau blocage','Signaler un point bloquant'],
+      ['document','file','Ajouter un document','Archiver un fichier ou un lien']
+    ];
+    return `<div class="popover popover--create" role="menu">
+      <div class="popover__head"><div><strong>Créer rapidement</strong><small>Les données sont enregistrées localement</small></div><button class="icon-button icon-button--ghost" data-action="close-popovers" aria-label="Fermer">${icon('close')}</button></div>
+      ${actions.map(([type, iconName, title, subtitle]) => `<button class="quick-create-item" data-action="open-form" data-type="${type}"><span>${icon(iconName)}</span><span><strong>${title}</strong><small>${subtitle}</small></span>${icon('chevron-right')}</button>`).join('')}
+    </div>`;
+  }
+
+  function renderPage(page) {
+    const pages = {
+      dashboard: renderDashboard,
+      affaires: renderAffaires,
+      reperes: renderReperes,
+      planning: renderPlanning,
+      interventions: renderInterventions,
+      workflows: renderWorkflows,
+      documents: renderDocuments,
+      settings: renderSettings
+    };
+    return (pages[page] || renderDashboard)();
+  }
+
+  function pageHeading(title, description, actions = '') {
+    return `<div class="page-heading"><div><span class="eyebrow">A3 Pilot</span><h1>${safe(title)}</h1><p>${safe(description)}</p></div><div class="page-heading__actions">${actions}</div></div>`;
+  }
+
+  function renderDashboard() {
+    const company = currentCompany();
+    const companyAffaires = state.affaires.filter(item => item.companyId === company.id);
+    const companyRepereIds = new Set(companyAffaires.map(item => item.id));
+    const companyReperes = state.reperes.filter(item => companyRepereIds.has(item.affairId));
+    const blocks = unresolvedBlockages().filter(item => companyRepereIds.has(item.repere.affairId));
+    const selected = getAffaire(state.settings.selectedAffaireId) || companyAffaires[0] || state.affaires[0];
+    const selectedReperes = selected ? state.reperes.filter(item => item.affairId === selected.id) : [];
+    const weekInterventions = state.interventions.filter(item => item.date && daysBetween(item.date, todayISO()) >= 0 && daysBetween(item.date, todayISO()) <= 7);
+
+    return `${pageHeading('Pilotage opérationnel', 'Une vue exploitable des affaires, repères, blocages et interventions.', `
+      <button class="secondary-button" data-action="toggle-filters">${icon('filter')}Filtres</button>
+      <button class="secondary-button" data-action="export-csv" data-export="dashboard">${icon('download')}Exporter</button>`)}
+      ${ui.filtersOpen ? renderDashboardFilters(companyAffaires) : ''}
+      <section class="kpi-grid">
+        ${kpiCard('Avancement global', `${globalProgress()} %`, 'Moyenne pondérée des affaires', 'primary', 'grid', globalProgress())}
+        ${kpiCard('Repères actifs', String(companyReperes.filter(item => item.status !== 'done').length), `${companyReperes.filter(item => item.status === 'done').length} terminés`, 'blue', 'boxes')}
+        ${kpiCard('Blocages ouverts', String(blocks.length), `${blocks.filter(item => item.priority === 'critical').length} critiques`, 'red', 'alert')}
+        ${kpiCard('Interventions à 7 jours', String(weekInterventions.length), `${state.interventions.filter(item => item.status === 'unassigned').length} à affecter`, 'green', 'calendar')}
+      </section>
+
+      <section class="dashboard-layout">
+        <article class="panel overview-panel">
+          <div class="panel__header"><div><span class="panel__eyebrow">Affaire suivie</span><h2>${safe(selected?.name || 'Aucune affaire')}</h2><p>${selected ? `${safe(selected.ref)} · ${safe(selected.city)} · ${safe(getCompany(selected.companyId)?.name)}` : ''}</p></div><div class="inline-actions"><select class="compact-select" data-action="select-dashboard-affair" aria-label="Choisir une affaire">${companyAffaires.map(item => `<option value="${item.id}" ${item.id === selected?.id ? 'selected' : ''}>${safe(item.ref)} — ${safe(item.name)}</option>`).join('')}</select><button class="text-button" data-action="navigate" data-page="affaires">Voir toutes</button></div></div>
+          ${selected ? renderAffaireOverview(selected, selectedReperes) : emptyState('briefcase','Aucune affaire','Créez une première affaire pour commencer le pilotage.')}
+        </article>
+
+        <article class="panel blockage-panel">
+          <div class="panel__header panel__header--compact"><div><h2>Blocages prioritaires</h2><p>Actions nécessitant une décision</p></div><button class="icon-button icon-button--soft" data-action="open-form" data-type="blockage" aria-label="Ajouter un blocage">${icon('plus')}</button></div>
+          <div class="blockage-list">${blocks.length ? blocks.slice(0,5).map(item => blockageRow(item)).join('') : emptyState('check','Aucun blocage ouvert','Tous les repères sont actuellement débloqués.')}</div>
+        </article>
+      </section>
+
+      <section class="panel matrix-panel">
+        <div class="panel__header panel__header--compact"><div><h2>Matrice d’avancement</h2><p>${selectedReperes.length} repères pour ${safe(selected?.ref || '')}</p></div><button class="secondary-button" data-action="navigate" data-page="reperes">Ouvrir les repères</button></div>
+        ${renderMatrix(selectedReperes)}
+      </section>
+
+      <section class="dashboard-bottom-grid">
+        <article class="panel">
+          <div class="panel__header panel__header--compact"><div><h2>Prochaines interventions</h2><p>Planning terrain à court terme</p></div><button class="text-button" data-action="navigate" data-page="planning">Ouvrir le planning</button></div>
+          <div class="compact-list">${state.interventions.filter(item => item.date).sort((a,b) => a.date.localeCompare(b.date)).slice(0,4).map(interventionCompactRow).join('')}</div>
+        </article>
+        <article class="panel">
+          <div class="panel__header panel__header--compact"><div><h2>Activité récente</h2><p>Historique des modifications locales</p></div><button class="icon-button icon-button--soft" data-action="clear-activity" aria-label="Vider l’historique">${icon('trash')}</button></div>
+          <div class="activity-list">${state.activity.length ? state.activity.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(activityRow).join('') : emptyState('clock','Aucune activité','Les modifications apparaîtront ici.')}</div>
+        </article>
+      </section>`;
+  }
+
+  function renderDashboardFilters(affaires) {
+    return `<div class="filter-bar"><div class="field field--inline"><label>Affaire</label><select data-action="select-dashboard-affair">${affaires.map(item => `<option value="${item.id}" ${item.id === state.settings.selectedAffaireId ? 'selected' : ''}>${safe(item.ref)} — ${safe(item.name)}</option>`).join('')}</select></div><div class="field field--inline"><label>Société</label><select data-action="filter-company">${state.companies.map(item => `<option value="${item.id}" ${item.id === state.settings.companyId ? 'selected' : ''}>${safe(item.name)}</option>`).join('')}</select></div><button class="icon-button icon-button--ghost" data-action="toggle-filters" aria-label="Fermer les filtres">${icon('close')}</button></div>`;
+  }
+
+  function kpiCard(label, value, meta, tone, iconName, progress = null) {
+    return `<article class="kpi-card kpi-card--${tone}"><div class="kpi-card__top"><span>${safe(label)}</span><span class="kpi-card__icon">${icon(iconName)}</span></div><strong class="kpi-card__value">${safe(value)}</strong>${progress !== null ? `<div class="progress-track"><span style="width:${progress}%"></span></div>` : ''}<small>${safe(meta)}</small></article>`;
+  }
+
+  function renderAffaireOverview(affaire, reperes) {
+    const progress = affaireProgress(affaire.id);
+    const manager = getUser(affaire.managerId);
+    const grouped = { studies: [], supply: [], field: [], close: [] };
+    reperes.forEach(repere => {
+      const workflow = getWorkflow(repere.workflowId);
+      const pct = repereProgress(repere);
+      grouped.studies.push(Math.min(100, pct * 1.4));
+      grouped.supply.push(clamp((pct - 20) * 1.6, 0, 100));
+      grouped.field.push(clamp((pct - 48) * 1.9, 0, 100));
+      grouped.close.push(repere.status === 'done' ? 100 : clamp((pct - 80) * 5, 0, 100));
+      void workflow;
+    });
+    const avg = values => values.length ? Math.round(values.reduce((a,b)=>a+b,0)/values.length) : 0;
+    return `<div class="affaire-overview">
+      <div class="donut" style="--value:${progress}"><div><strong>${progress}%</strong><span>global</span></div></div>
+      <div class="phase-summary">
+        ${phaseSummaryRow('Études et validations', avg(grouped.studies))}
+        ${phaseSummaryRow('Approvisionnement', avg(grouped.supply))}
+        ${phaseSummaryRow('Pose et réglages', avg(grouped.field))}
+        ${phaseSummaryRow('Clôture et PV', avg(grouped.close))}
+      </div>
+      <dl class="meta-grid">
+        <div><dt>Conducteur</dt><dd><span class="avatar avatar--small">${safe(manager?.initials || 'A3')}</span>${safe(manager?.name || 'Non affecté')}</dd></div>
+        <div><dt>Échéance</dt><dd>${formatDate(affaire.dueDate)}</dd></div>
+        <div><dt>Repères</dt><dd>${reperes.length} ouvrages</dd></div>
+        <div><dt>Budget</dt><dd>${formatMoney(affaire.budget)}</dd></div>
+        <div><dt>Dolibarr</dt><dd>${safe(affaire.dolibarrRef || 'Non lié')}</dd></div>
+        <div><dt>Localisation</dt><dd>${safe(affaire.city)}</dd></div>
+      </dl>
+    </div>`;
+  }
+
+  function phaseSummaryRow(label, progress) {
+    return `<div class="phase-summary__row"><div><span>${safe(label)}</span><strong>${progress}%</stro
