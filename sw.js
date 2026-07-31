@@ -1,7 +1,7 @@
-const CACHE_NAME = 'a3-pilot-maquette-v4.1';
+const CACHE_NAME = 'a3-pilot-maquette-v4.2';
 const APP_SHELL = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest', './assets/icon.svg',
-  './chunks/app-01.part', './chunks/app-02.part', './chunks/app-03.part', './chunks/app-04.part', './chunks/app-05.part', './chunks/app-06.part', './chunks/app-07.part', './chunks/styles-01.part', './chunks/styles-02.part', './chunks/styles-03.part', './chunks/styles-04.part'
+  './chunks/app-01.part', './chunks/app-02.part', './chunks/app-03.part', './chunks/app-04.part', './chunks/app-05.part', './chunks/app-06.part', './chunks/app-07.part', './css/p01.css', './css/p02.css', './css/p03.css', './css/p04.css', './css/p05.css', './css/p06.css', './css/p07.css', './css/p08.css', './css/p09.css'
 ];
 
 self.addEventListener('install', event => {
