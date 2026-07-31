@@ -1,0 +1,14 @@
+{
+  "name": "A3 Pilot — Maquette",
+  "short_name": "A3 Pilot",
+  "description": "Maquette interactive de pilotage opérationnel par repères pour le Groupe A3.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f6fa",
+  "theme_color": "#0b1220",
+  "lang": "fr",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
