@@ -1,0 +1,72 @@
+  .topbar__actions > .icon-button:nth-of-type(1) { display: none; }
+  .content-area { padding-inline: 12px; }
+  .page-heading { margin-bottom: 17px; display: grid; gap: 12px; }
+  .page-heading h1 { font-size: 26px; }
+  .page-heading p { font-size: 10px; line-height: 1.5; }
+  .page-heading__actions { justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
+  .page-heading__actions .secondary-button,.page-heading__actions .primary-button { flex: 0 0 auto; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .kpi-card { min-height: 125px; padding: 13px; }
+  .kpi-card__value { font-size: 26px; }
+  .kpi-card__top { align-items: flex-start; font-size: 8.5px; }
+  .kpi-card small { line-height: 1.35; }
+  .panel { border-radius: 14px; }
+  .panel__header { padding: 14px; }
+  .panel__header .compact-select { max-width: 150px; }
+  .affaire-overview { padding: 16px; grid-template-columns: 1fr; justify-items: center; }
+  .donut { width: 115px; }
+  .phase-summary { width: 100%; }
+  .affaire-overview .meta-grid { width: 100%; padding-top: 15px; grid-template-columns: 1fr 1fr; }
+  .dashboard-bottom-grid { gap: 12px; }
+  .filter-bar,.toolbar,.planning-toolbar { align-items: stretch; flex-direction: column; }
+  .toolbar__group { width: 100%; align-items: stretch; flex-direction: column; }
+  .select-control,.field--inline { width: 100%; justify-content: space-between; }
+  .select-control select,.field--inline select { flex: 1; }
+  .segmented { width: 100%; overflow-x: auto; }
+  .segmented button { flex: 1 0 auto; }
+  .affaire-grid { grid-template-columns: 1fr; }
+  .kanban-board { margin-inline: -12px; padding-inline: 12px; scroll-snap-type: x mandatory; }
+  .kanban-lane { width: 84vw; min-width: 84vw; min-height: 500px; scroll-snap-align: center; }
+  .planning-toolbar > strong { text-align: center; }
+  .week-navigation { justify-content: center; }
+  .unassigned-list { grid-template-columns: 1fr; }
+  .workflow-phases { grid-template-columns: 1fr; }
+  .document-card { align-items: flex-start; }
+  .document-card__actions { flex-direction: column; }
+  .settings-grid { gap: 12px; }
+  .drawer { width: 100vw; }
+  .drawer__header { min-height: 70px; padding: 12px 14px; }
+  .drawer__body { padding: 12px; }
+  .drawer__footer { justify-content: stretch; }
+  .drawer__footer > button { flex: 1; }
+  .drawer-hero dl { grid-template-columns: 1fr; }
+  .modal,.modal--wide,.modal--small,.modal--search { top: 0; left: 0; width: 100vw; height: 100dvh; max-height: none; border: 0; border-radius: 0; transform: translateY(102%); }
+  .modal.is-open,.modal--search.is-open { transform: translateY(0); }
+  .modal__header { min-height: 72px; padding: 13px 14px; position: sticky; top: 0; z-index: 2; background: var(--surface); }
+  .modal__body { flex: 1; padding: 15px 13px; }
+  .modal__footer { position: sticky; bottom: 0; justify-content: stretch; }
+  .modal__footer > button { flex: 1; }
+  .form-grid--2 { grid-template-columns: 1fr; }
+  .field--full { grid-column: auto; }
+  .check-grid,.check-grid--compact { grid-template-columns: 1fr; max-height: 260px; }
+  .search-modal__body { flex: 1; overflow: auto; }
+  .search-modal__footer { padding-bottom: max(9px,env(safe-area-inset-bottom)); }
+  .toast-region { right: 10px; bottom: calc(84px + env(safe-area-inset-bottom)); left: 10px; }
+  .toast { min-width: 0; max-width: none; width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .kpi-card { min-height: 112px; }
+  .affaire-overview .meta-grid { grid-template-columns: 1fr; }
+  .intervention-card__main { padding: 13px; }
+  .intervention-card__meta { grid-template-columns: 1fr 1fr; }
+  .intervention-card__actions { flex-wrap: wrap; }
+  .document-card__icon { width: 36px; height: 36px; }
+  .mobile-bottom-nav span { display: none; }
+  .mobile-bottom-nav { height: 58px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
