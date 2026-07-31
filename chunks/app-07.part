@@ -1,0 +1,69 @@
+  if(!files.length)return;
+    updateState(s=>{[...files].forEach(file=>s.documents.push({id:uid('doc'),name:file.name,category:'Autres',affairId:s.settings.selectedAffaireId,repereId:'',size:file.size,createdAt:new Date().toISOString(),authorId:'usr_remy'}));pushActivity(s,`${files.length} fichier${files.length>1?'s':''} importé${files.length>1?'s':''}`,'Rémy F. · à l’instant','info');},`${files.length} fichier${files.length>1?'s':''} ajouté${files.length>1?'s':''}.`);
+    documentFileInput.value='';
+  }
+
+  function downloadDocument(id) {
+    const item=state.documents.find(doc=>doc.id===id);if(!item)return;
+    const content=`A3 Pilot — Fiche documentaire\n\nNom : ${item.name}\nCatégorie : ${item.category}\nAffaire : ${getAffaire(item.affairId)?.name||''}\nRepère : ${getRepere(item.repereId)?.code||'Aucun'}\nTaille simulée : ${formatBytes(item.size)}\nAjouté le : ${formatDate(item.createdAt)}\n\nMaquette : le fichier source n’est pas stocké.`;
+    downloadBlob(content,`${item.name.replace(/\.[^.]+$/,'')}-fiche.txt`,'text/plain;charset=utf-8');
+  }
+
+  function exportJSON() {
+    downloadBlob(JSON.stringify(state,null,2),`a3-pilot-sauvegarde-${todayISO()}.json`,'application/json');
+    toast('Sauvegarde JSON exportée.','success');
+  }
+
+  function importJSON(file) {
+    const reader=new FileReader();
+    reader.onload=()=>{try{const parsed=JSON.parse(reader.result);if(!parsed.settings||!parsed.affaires||!parsed.reperes)throw new Error('Format incomplet');parsed.version=APP_VERSION;state=parsed;saveState();render();toast('Sauvegarde importée.','success');}catch(error){toast('Le fichier JSON n’est pas une sauvegarde A3 Pilot valide.','danger');}};
+    reader.readAsText(file);
+  }
+
+  function exportCSV(scope) {
+    let rows=[];let filename=scope;
+    if(scope==='affaires')rows=[['Référence','Nom','Client','Ville','Statut','Avancement','Budget'],...state.affaires.map(a=>[a.ref,a.name,getClient(a.clientId)?.name||'',a.city,affaireStatusLabel(a.status),`${affaireProgress(a.id)}%`,a.budget])];
+    if(scope==='reperes')rows=[['Code','Affaire','Typologie','Zone','Statut','Phase','Avancement'],...state.reperes.map(r=>[r.code,getAffaire(r.affairId)?.ref||'',getWorkflow(r.workflowId)?.name||'',r.zone,statusLabel(r.status),getWorkflow(r.workflowId)?.phases[r.phaseIndex]?.name||'',`${repereProgress(r)}%`])];
+    if(scope==='interventions')rows=[['Titre','Affaire','Date','Début','Fin','Statut','Équipe'],...state.interventions.map(i=>[i.title,getAffaire(i.affairId)?.ref||'',i.date,i.start,i.end,statusLabel(i.status),(i.teamIds||[]).map(id=>getUser(id)?.name||'').join(' / ')])];
+    if(scope==='dashboard')rows=[['Indicateur','Valeur'],['Avancement global',`${globalProgress()}%`],['Affaires',state.affaires.length],['Repères',state.reperes.length],['Blocages ouverts',unresolvedBlockages().length],['Interventions',state.interventions.length]];
+    const csv=rows.map(row=>row.map(value=>`"${String(value??'').replaceAll('"','""')}"`).join(';')).join('\n');
+    downloadBlob(`\uFEFF${csv}`,`a3-pilot-${filename}-${todayISO()}.csv`,'text/csv;charset=utf-8');toast('Export CSV généré.','success');
+  }
+
+  function downloadBlob(content,filename,type) {
+    const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  }
+
+  function pushActivity(s,text,meta,type='info') { s.activity.unshift({id:uid('act'),text,meta,date:new Date().toISOString(),type}); s.activity=s.activity.slice(0,50); }
+
+  function toast(message,tone='info') {
+    const node=document.createElement('div');node.className=`toast toast--${tone}`;node.innerHTML=`<span>${icon(tone==='success'?'check':tone==='danger'?'alert':'bell')}</span><strong>${safe(message)}</strong><button aria-label="Fermer">${icon('close')}</button>`;node.querySelector('button').onclick=()=>node.remove();toastRegion.appendChild(node);requestAnimationFrame(()=>node.classList.add('is-visible'));setTimeout(()=>{node.classList.remove('is-visible');setTimeout(()=>node.remove(),250);},3500);
+  }
+
+  function emptyState(iconName,title,text) { return `<div class="empty-state"><span>${icon(iconName)}</span><strong>${safe(title)}</strong><p>${safe(text)}</p></div>`; }
+  function statusLabel(status){return({planned:'Planifié',in_progress:'En cours',blocked:'Bloqué',done:'Terminé',unassigned:'À affecter',confirmed:'Confirmée',completed:'Terminée',active:'Active',warning:'À surveiller',archived:'Archivée'})[status]||status;}
+  function statusTone(status){return({planned:'neutral',in_progress:'info',blocked:'danger',done:'success',unassigned:'warning',confirmed:'success',completed:'success',active:'info',warning:'warning',archived:'neutral'})[status]||'neutral';}
+  function affaireStatusLabel(status){return({active:'Active',warning:'À surveiller',completed:'Terminée',archived:'Archivée'})[status]||status;}
+  function priorityLabel(value){return({normal:'Normale',high:'Haute',critical:'Critique'})[value]||value;}
+  function nextReference(){const year=new Date().getFullYear();const max=state.affaires.map(a=>Number((a.ref.match(/(\d{4})$/)||[])[1]||0)).reduce((a,b)=>Math.max(a,b),0);return`AF-${year}-${String(max+1).padStart(4,'0')}`;}
+  function nextRepereCode(){const count=state.reperes.length+1;return`NV${String(count).padStart(2,'0')}`;}
+  function addDays(date,days){const copy=new Date(date);copy.setDate(copy.getDate()+days);return copy;}
+  function startOfWeek(date){const copy=new Date(date);const day=(copy.getDay()+6)%7;copy.setDate(copy.getDate()-day);copy.setHours(12,0,0,0);return copy;}
+  function daysBetween(a,b){return Math.floor((new Date(`${a}T12:00:00`)-new Date(`${b}T12:00:00`))/86400000);}
+
+  document.addEventListener('click',handleClick);
+  document.addEventListener('change',handleChange);
+  document.addEventListener('input',handleInput);
+  document.addEventListener('submit',handleSubmit);
+  document.addEventListener('keydown',handleKeydown);
+  documentFileInput.addEventListener('change',event=>handleFiles(event.target.files));
+  importFileInput.addEventListener('change',event=>{const file=event.target.files[0];if(file)importJSON(file);event.target.value='';});
+
+  render();
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Service worker non disponible.', error));
+    });
+  }
+})();
