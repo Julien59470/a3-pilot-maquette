@@ -1,0 +1,322 @@
+ettings.theme=s.settings.theme==='dark'?'light':'dark';}),
+      'toggle-notifications': () => { ui.notificationsOpen=!ui.notificationsOpen; ui.companyOpen=false; ui.quickCreateOpen=false; render(); },
+      'toggle-quick-create': () => { ui.quickCreateOpen=!ui.quickCreateOpen; ui.companyOpen=false; ui.notificationsOpen=false; render(); },
+      'close-popovers': () => closePopovers(),
+      'mark-all-read': () => updateState(s=>s.notifications.forEach(n=>n.read=true),'Toutes les notifications sont marquées comme lues.'),
+      'open-notification': () => openNotification(id),
+      'open-search': openSearch,
+      'close-search': closeSearch,
+      'open-search-result': () => openSearchResult(target.dataset.kind,id),
+      'open-form': () => openForm(type,id,{repereId:target.dataset.repere,affairId:target.dataset.affair}),
+      'close-modal': closeModal,
+      'close-confirm': closeConfirm,
+      'close-drawer': closeDrawer,
+      'close-overlays': closeAllOverlays,
+      'open-repere': () => openRepere(id),
+      'open-affaire': () => openAffaire(id),
+      'open-intervention': () => openIntervention(id),
+      'confirm-delete': () => confirmDelete(type,id),
+      'execute-confirm': executeConfirm,
+      'duplicate-affaire': () => duplicateAffaire(id),
+      'duplicate-workflow': () => duplicateWorkflow(id),
+      'advance-repere': () => advanceRepere(id),
+      'set-phase': () => setReperePhase(id,Number(target.dataset.index)),
+      'resolve-blockage': () => resolveBlockage(target.dataset.repere,id),
+      'delete-note': () => deleteNote(target.dataset.repere,id),
+      'set-repere-view': () => updateState(s=>{s.settings.repereView=target.dataset.view;}),
+      'change-week': () => updateState(s=>{s.settings.planningWeekOffset += Number(target.dataset.offset);}),
+      'current-week': () => updateState(s=>{s.settings.planningWeekOffset=0;}),
+      'filter-interventions': () => { ui.filters.interventionStatus=target.dataset.status; render(); },
+      'start-intervention': () => startIntervention(id),
+      'complete-intervention': () => completeIntervention(id),
+      'toggle-checklist': () => toggleChecklist(target.dataset.intervention,target.dataset.check),
+      'trigger-file-upload': () => documentFileInput.click(),
+      'download-document': () => downloadDocument(id),
+      'export-json': exportJSON,
+      'trigger-import-json': () => importFileInput.click(),
+      'confirm-reset': confirmReset,
+      'dolibarr-info': () => openForm('dolibarr'),
+      'toggle-filters': () => { ui.filtersOpen=!ui.filtersOpen; render(); },
+      'export-csv': () => exportCSV(target.dataset.export),
+      'clear-activity': () => updateState(s=>{s.activity=[];},'Historique local vidé.')
+    };
+    actions[action]?.();
+  }
+
+  function handleChange(event) {
+    const target = event.target;
+    if (target.matches('[data-filter]')) {
+      ui.filters[target.dataset.filter] = target.value;
+      render();
+      return;
+    }
+    if (target.matches('[data-action="select-dashboard-affair"]')) {
+      updateState(s=>{s.settings.selectedAffaireId=target.value;});
+      return;
+    }
+    if (target.matches('[data-action="filter-company"]')) {
+      updateState(s=>{s.settings.companyId=target.value;});
+      return;
+    }
+    if (target.matches('[data-setting]')) {
+      const key = target.dataset.setting;
+      updateState(s=>{
+        if (key==='theme') s.settings.theme=target.checked?'dark':'light';
+        else s.settings[key]=target.checked;
+      });
+      return;
+    }
+    if (target.matches('[data-setting-select]')) {
+      updateState(s=>{s.settings[target.dataset.settingSelect]=target.value;},'Profil simulé mis à jour.');
+    }
+  }
+
+  function handleInput(event) {
+    if (event.target.id === 'searchModalInput') {
+      ui.searchQuery = event.target.value;
+      renderSearchModal();
+      requestAnimationFrame(() => { const input=document.getElementById('searchModalInput'); if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);} });
+    }
+  }
+
+  function handleSubmit(event) {
+    const form = event.target;
+    if (form.dataset.form === 'entity') {
+      event.preventDefault();
+      submitEntityForm(form);
+    }
+    if (form.dataset.form === 'note') {
+      event.preventDefault();
+      const data = new FormData(form);
+      const text = String(data.get('text')||'').trim();
+      if (!text) return;
+      const repereId = form.dataset.repere;
+      updateState(s=>{ const repere=s.reperes.find(r=>r.id===repereId); repere.notes.push({id:uid('note'),text,authorId:'usr_remy',date:new Date().toISOString()}); pushActivity(s,`Note ajoutée sur ${repere.code}`,'Rémy F. · à l’instant','info'); },'Note ajoutée.');
+      ui.drawerRepereId = repereId;
+      render();
+    }
+  }
+
+  function handleKeydown(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault(); openSearch(); return;
+    }
+    if (event.key === 'Escape') {
+      closeAllOverlays();
+    }
+  }
+
+  function navigate(page) {
+    state.settings.currentPage = page;
+    saveState();
+    ui.mobileNavOpen=false;
+    closePopovers(false);
+    render();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  function toggleSidebar() {
+    updateState(s=>{s.settings.sidebarCollapsed=!s.settings.sidebarCollapsed;});
+  }
+
+  function openSearch() { ui.searchOpen=true; ui.searchQuery=''; closePopovers(false); render(); }
+  function closeSearch() { ui.searchOpen=false; render(); }
+  function openForm(type,id=null,context={}) { ui.modal={type,id,context}; closePopovers(false); render(); }
+  function closeModal() { ui.modal=null; render(); }
+  function closeConfirm() { ui.confirm=null; render(); }
+  function openRepere(id) { ui.drawerRepereId=id; ui.mobileNavOpen=false; render(); }
+  function closeDrawer() { ui.drawerRepereId=null; render(); }
+  function closePopovers(shouldRender=true) { ui.companyOpen=false; ui.notificationsOpen=false; ui.quickCreateOpen=false; if(shouldRender)render(); }
+  function closeAllOverlays() { ui.drawerRepereId=null; ui.modal=null; ui.confirm=null; ui.searchOpen=false; ui.mobileNavOpen=false; closePopovers(false); render(); }
+
+  function openAffaire(id) {
+    state.settings.selectedAffaireId=id;
+    state.settings.currentPage='dashboard';
+    saveState();
+    render();
+  }
+
+  function openIntervention(id) {
+    openForm('intervention',id);
+  }
+
+  function openNotification(id) {
+    const notification = state.notifications.find(item=>item.id===id);
+    if (!notification) return;
+    notification.read=true; saveState(); ui.notificationsOpen=false;
+    if (notification.target?.repereId) { state.settings.currentPage='reperes'; ui.drawerRepereId=notification.target.repereId; }
+    else if (notification.target?.page) state.settings.currentPage=notification.target.page;
+    saveState(); render();
+  }
+
+  function openSearchResult(kind,id) {
+    ui.searchOpen=false;
+    if (kind==='repere') { state.settings.currentPage='reperes'; ui.drawerRepereId=id; }
+    if (kind==='affaire') { state.settings.selectedAffaireId=id; state.settings.currentPage='dashboard'; }
+    if (kind==='intervention') { state.settings.currentPage='interventions'; ui.modal={type:'intervention',id,context:{}}; }
+    if (kind==='document') { state.settings.currentPage='documents'; }
+    if (kind==='workflow') { state.settings.currentPage='workflows'; ui.modal={type:'workflow',id,context:{}}; }
+    saveState(); render();
+  }
+
+  function submitEntityForm(form) {
+    const type = form.dataset.type;
+    const id = form.dataset.id || null;
+    const data = new FormData(form);
+    if (type==='dolibarr') { closeModal(); return; }
+    const handlers = {
+      affaire: saveAffaire,
+      repere: saveRepere,
+      intervention: saveIntervention,
+      workflow: saveWorkflow,
+      document: saveDocument,
+      blockage: saveBlockage
+    };
+    handlers[type]?.(data,id);
+  }
+
+  function saveAffaire(data,id) {
+    updateState(s=>{
+      const payload={ref:String(data.get('ref')).trim(),name:String(data.get('name')).trim(),clientId:data.get('clientId'),companyId:data.get('companyId'),city:String(data.get('city')).trim(),address:String(data.get('address')).trim(),managerId:data.get('managerId'),dueDate:data.get('dueDate'),budget:Number(data.get('budget')||0),status:data.get('status'),dolibarrRef:String(data.get('dolibarrRef')).trim()};
+      if(id) Object.assign(s.affaires.find(item=>item.id===id),payload);
+      else { const item={id:uid('aff'),createdAt:todayISO(),...payload}; s.affaires.push(item); s.settings.selectedAffaireId=item.id; }
+      pushActivity(s,`${id?'Affaire modifiée':'Affaire créée'} : ${payload.ref}`,'Rémy F. · à l’instant','info');
+    }, id?'Affaire enregistrée.':'Affaire créée.');
+    ui.modal=null; render();
+  }
+
+  function saveRepere(data,id) {
+    const assigneeIds=data.getAll('assigneeIds');
+    updateState(s=>{
+      const payload={code:String(data.get('code')).trim().toUpperCase(),affairId:data.get('affairId'),workflowId:data.get('workflowId'),zone:String(data.get('zone')).trim(),dimensions:String(data.get('dimensions')).trim(),status:data.get('status'),priority:data.get('priority'),assigneeIds};
+      if(id) Object.assign(s.reperes.find(item=>item.id===id),payload);
+      else { const item={id:uid('rep'),phaseIndex:0,notes:[],blockages:[],createdAt:todayISO(),...payload}; s.reperes.push(item); }
+      pushActivity(s,`${id?'Repère modifié':'Repère créé'} : ${payload.code}`,'Rémy F. · à l’instant','info');
+    }, id?'Repère enregistré.':'Repère créé avec son workflow.');
+    ui.modal=null; if(id)ui.drawerRepereId=id; render();
+  }
+
+  function saveIntervention(data,id) {
+    const repereIds=data.getAll('repereIds');
+    const teamIds=data.getAll('teamIds');
+    const checklistText=String(data.get('checklist')||'');
+    updateState(s=>{
+      const existing=id?s.interventions.find(item=>item.id===id):null;
+      const previousDone=new Map((existing?.checklist||[]).map(c=>[c.label,c.done]));
+      const checklist=checklistText.split('\n').map(line=>line.trim()).filter(Boolean).map(label=>({id:uid('check'),label,done:previousDone.get(label)||false}));
+      const date=String(data.get('date')||'');
+      let status=data.get('status'); if(!date&&status!=='completed')status='unassigned';
+      const payload={title:String(data.get('title')).trim(),affairId:data.get('affairId'),date,start:data.get('start'),end:data.get('end'),type:data.get('type'),status,address:String(data.get('address')).trim(),notes:String(data.get('notes')).trim(),repereIds,teamIds,checklist};
+      if(id)Object.assign(existing,payload);else s.interventions.push({id:uid('int'),...payload});
+      pushActivity(s,`${id?'Intervention modifiée':'Intervention créée'} : ${payload.title}`,'Rémy F. · à l’instant','info');
+    },id?'Intervention enregistrée.':'Intervention planifiée.');
+    ui.modal=null;render();
+  }
+
+  function saveWorkflow(data,id) {
+    const phases=String(data.get('phases')||'').split('\n').map(line=>line.trim()).filter(Boolean).map((line,index)=>{const [name,weight='0']=line.split('|').map(part=>part.trim());return{id:`phase_${normalizePhase(name).replace(/\s+/g,'_')}_${index}`,name,weight:Number(weight)||0};});
+    updateState(s=>{
+      const payload={code:String(data.get('code')).trim().toUpperCase(),name:String(data.get('name')).trim(),version:Number(data.get('version')||1),companyId:data.get('companyId'),active:data.get('active')==='true',phases};
+      if(id)Object.assign(s.workflows.find(item=>item.id===id),payload);else s.workflows.push({id:uid('wf'),...payload});
+      pushActivity(s,`${id?'Workflow modifié':'Workflow créé'} : ${payload.code}`,'Rémy F. · à l’instant','info');
+    },id?'Workflow enregistré.':'Workflow créé.');
+    ui.modal=null;render();
+  }
+
+  function saveDocument(data,id) {
+    updateState(s=>{
+      const payload={name:String(data.get('name')).trim(),category:data.get('category'),affairId:data.get('affairId'),repereId:data.get('repereId'),size:Number(data.get('size')||0)};
+      if(id)Object.assign(s.documents.find(item=>item.id===id),payload);else s.documents.push({id:uid('doc'),createdAt:new Date().toISOString(),authorId:'usr_remy',...payload});
+      pushActivity(s,`${id?'Document modifié':'Document ajouté'} : ${payload.name}`,'Rémy F. · à l’instant','info');
+    },id?'Document enregistré.':'Document ajouté.');
+    ui.modal=null;render();
+  }
+
+  function saveBlockage(data) {
+    const repereId=data.get('repereId');
+    updateState(s=>{
+      const repere=s.reperes.find(item=>item.id===repereId);
+      const blockage={id:uid('blk'),title:String(data.get('title')).trim(),description:String(data.get('description')).trim(),owner:String(data.get('owner')).trim(),dueDate:data.get('dueDate'),priority:data.get('priority'),resolved:false,createdAt:new Date().toISOString()};
+      repere.blockages.push(blockage);repere.status='blocked';repere.priority=blockage.priority==='critical'?'critical':repere.priority;
+      s.notifications.unshift({id:uid('not'),title:'Nouveau blocage',text:`${repere.code} : ${blockage.title}`,type:blockage.priority==='critical'?'danger':'warning',read:false,createdAt:new Date().toISOString(),target:{page:'reperes',repereId}});
+      pushActivity(s,`Blocage ajouté sur ${repere.code}`,'Rémy F. · à l’instant','danger');
+    },'Blocage ajouté et notification créée.');
+    ui.modal=null;ui.drawerRepereId=repereId;render();
+  }
+
+  function confirmDelete(type,id) {
+    if (type === 'workflow' && state.reperes.some(repere => repere.workflowId === id)) {
+      toast('Ce workflow est utilisé par un ou plusieurs repères. Dupliquez-le ou réaffectez les repères avant de le supprimer.','warning');
+      return;
+    }
+    const labels={affaire:'cette affaire et ses liens',repere:'ce repère',intervention:'cette intervention',workflow:'ce workflow',document:'ce document'};
+    ui.confirm={title:'Confirmer la suppression',description:`Voulez-vous supprimer ${labels[type]||'cet élément'} ?`,detail:'Cette action modifie les données de la maquette dans ce navigateur.',confirmLabel:'Supprimer',danger:true,callback:{action:'delete',type,id}};
+    render();
+  }
+
+  function confirmReset() {
+    ui.confirm={title:'Restaurer les données initiales',description:'Toutes vos modifications locales seront remplacées.',detail:'Exportez une sauvegarde JSON avant de continuer si vous souhaitez conserver vos essais.',confirmLabel:'Restaurer',danger:true,callback:{action:'reset'}};
+    render();
+  }
+
+  function executeConfirm() {
+    const callback=ui.confirm?.callback; if(!callback)return;
+    ui.confirm=null;
+    if(callback.action==='reset'){state=cloneSeed();saveState();ui.drawerRepereId=null;ui.modal=null;render();toast('Données de démonstration restaurées.','success');return;}
+    if(callback.action==='delete')deleteEntity(callback.type,callback.id);
+  }
+
+  function deleteEntity(type,id) {
+    updateState(s=>{
+      if(type==='affaire'){s.affaires=s.affaires.filter(item=>item.id!==id);const repIds=s.reperes.filter(r=>r.affairId===id).map(r=>r.id);s.reperes=s.reperes.filter(r=>r.affairId!==id);s.interventions=s.interventions.filter(i=>i.affairId!==id);s.documents=s.documents.filter(d=>d.affairId!==id);void repIds;}
+      if(type==='repere'){s.reperes=s.reperes.filter(item=>item.id!==id);s.interventions.forEach(i=>i.repereIds=(i.repereIds||[]).filter(rid=>rid!==id));s.documents.forEach(d=>{if(d.repereId===id)d.repereId='';});}
+      if(type==='intervention')s.interventions=s.interventions.filter(item=>item.id!==id);
+      if(type==='workflow')s.workflows=s.workflows.filter(item=>item.id!==id);
+      if(type==='document')s.documents=s.documents.filter(item=>item.id!==id);
+      pushActivity(s,`Élément supprimé : ${type}`,'Rémy F. · à l’instant','danger');
+    },'Élément supprimé.');
+    ui.drawerRepereId=null;render();
+  }
+
+  function duplicateAffaire(id) {
+    updateState(s=>{const source=s.affaires.find(item=>item.id===id);const clone={...source,id:uid('aff'),ref:`${source.ref}-COPIE`,name:`${source.name} — copie`,status:'active',createdAt:todayISO()};s.affaires.push(clone);pushActivity(s,`Affaire dupliquée : ${clone.ref}`,'Rémy F. · à l’instant','info');},'Affaire dupliquée.');
+  }
+
+  function duplicateWorkflow(id) {
+    updateState(s=>{const source=s.workflows.find(item=>item.id===id);const clone=JSON.parse(JSON.stringify(source));clone.id=uid('wf');clone.code=`${source.code}C`;clone.name=`${source.name} — copie`;clone.version=1;s.workflows.push(clone);pushActivity(s,`Workflow dupliqué : ${clone.code}`,'Rémy F. · à l’instant','info');},'Workflow dupliqué.');
+  }
+
+  function advanceRepere(id) {
+    updateState(s=>{const repere=s.reperes.find(r=>r.id===id);const workflow=s.workflows.find(w=>w.id===repere.workflowId);if(repere.phaseIndex<workflow.phases.length-1){repere.phaseIndex++;repere.status='in_progress';}else{repere.status='done';repere.phaseIndex=workflow.phases.length-1;}pushActivity(s,`${repere.code} a avancé dans son workflow`,'Rémy F. · à l’instant','success');},'Phase mise à jour.');
+    ui.drawerRepereId=id;render();
+  }
+
+  function setReperePhase(id,index) {
+    updateState(s=>{const repere=s.reperes.find(r=>r.id===id);repere.phaseIndex=index;repere.status='in_progress';pushActivity(s,`Phase de ${repere.code} repositionnée`,'Rémy F. · à l’instant','info');},'Phase sélectionnée.');
+    ui.drawerRepereId=id;render();
+  }
+
+  function resolveBlockage(repereId,blockageId) {
+    updateState(s=>{const repere=s.reperes.find(r=>r.id===repereId);const block=repere.blockages.find(b=>b.id===blockageId);block.resolved=true;block.resolvedAt=new Date().toISOString();if(!(repere.blockages||[]).some(b=>!b.resolved))repere.status='in_progress';pushActivity(s,`Blocage résolu sur ${repere.code}`,'Rémy F. · à l’instant','success');},'Blocage résolu.');
+    ui.drawerRepereId=repereId;render();
+  }
+
+  function deleteNote(repereId,noteId) {
+    updateState(s=>{const repere=s.reperes.find(r=>r.id===repereId);repere.notes=repere.notes.filter(n=>n.id!==noteId);},'Note supprimée.');
+    ui.drawerRepereId=repereId;render();
+  }
+
+  function startIntervention(id) {
+    updateState(s=>{const item=s.interventions.find(i=>i.id===id);item.status='in_progress';pushActivity(s,`Intervention démarrée : ${item.title}`,'Équipe terrain · à l’instant','info');},'Intervention démarrée.');
+  }
+
+  function completeIntervention(id) {
+    updateState(s=>{const item=s.interventions.find(i=>i.id===id);item.status='completed';(item.checklist||[]).forEach(c=>c.done=true);(item.repereIds||[]).forEach(rid=>{const rep=s.reperes.find(r=>r.id===rid);if(rep&&rep.status!=='done')rep.status='in_progress';});pushActivity(s,`Intervention terminée : ${item.title}`,'Équipe terrain · à l’instant','success');},'Intervention terminée.');
+  }
+
+  function toggleChecklist(interventionId,checkId) {
+    updateState(s=>{const item=s.interventions.find(i=>i.id===interventionId);const check=item.checklist.find(c=>c.id===checkId);check.done=!check.done;});
+  }
+
+  function handleFiles(files) {
+  
