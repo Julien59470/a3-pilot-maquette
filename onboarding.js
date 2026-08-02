@@ -86,6 +86,8 @@
     const originalSubmit = footer?.querySelector('button[type="submit"]');
     if (!body || !footer || !originalSubmit) return;
 
+    anchorFormToModal(form, body, footer);
+
     const fieldNodes = new Map();
     config.steps.flatMap(item => item.names).forEach(name => {
       const control = form.querySelector(`[name="${name}"]`);
@@ -125,6 +127,50 @@
     footer.appendChild(actions);
 
     bindWizard(form, panels, previous, next, originalSubmit);
+  }
+
+  function anchorFormToModal(form, body, footer) {
+    Object.assign(modal.style, {
+      overflow: 'hidden'
+    });
+
+    Object.assign(form.style, {
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      minWidth: '0',
+      minHeight: '0',
+      maxHeight: 'none',
+      margin: '0',
+      display: 'grid',
+      gridTemplateRows: 'auto minmax(0, 1fr) auto',
+      overflow: 'hidden'
+    });
+
+    Object.assign(body.style, {
+      gridRow: '2',
+      width: '100%',
+      height: 'auto',
+      minWidth: '0',
+      minHeight: '0',
+      overflow: 'hidden'
+    });
+
+    Object.assign(footer.style, {
+      gridRow: '3',
+      position: 'relative',
+      inset: 'auto',
+      top: 'auto',
+      right: 'auto',
+      bottom: 'auto',
+      left: 'auto',
+      alignSelf: 'end',
+      width: '100%',
+      minWidth: '0',
+      margin: '0',
+      zIndex: '10'
+    });
   }
 
   function onboardingSkeleton(config) {
@@ -173,16 +219,10 @@
       form.querySelector('[data-wizard-percent]').textContent = `${Math.round(progress)} %`;
       form.querySelector('[data-wizard-progress]').style.width = `${progress}%`;
 
-      const activeButton = stepButtons[current];
-      if (activeButton && window.matchMedia('(max-width: 960px)').matches) {
-        activeButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-
       if (focus) {
         const heading = panels[current].querySelector('h3');
         heading.tabIndex = -1;
         heading.focus({ preventScroll: true });
-        bodyScroll(form);
       }
     };
 
@@ -231,11 +271,6 @@
     element.dataset[attribute.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = '';
     element.innerHTML = html;
     return element;
-  }
-
-  function bodyScroll(form) {
-    const body = form.querySelector('.modal__body');
-    if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function svg(name) {
