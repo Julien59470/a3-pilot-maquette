@@ -56,14 +56,6 @@
     }
   };
 
-  const LABELS = {
-    ref: 'Référence', name: 'Nom', clientId: 'Client', companyId: 'Société', city: 'Ville', address: 'Adresse',
-    managerId: 'Conducteur', dueDate: 'Échéance', status: 'Statut', budget: 'Budget HT', dolibarrRef: 'Référence Dolibarr',
-    affairId: 'Affaire', workflowId: 'Typologie', code: 'Code repère', zone: 'Zone', dimensions: 'Dimensions', priority: 'Priorité', assigneeIds: 'Équipe',
-    title: 'Titre', type: 'Type', date: 'Date', start: 'Début', end: 'Fin', repereIds: 'Repères', teamIds: 'Équipe', notes: 'Consignes', checklist: 'Check-list',
-    version: 'Version', active: 'État', phases: 'Phases', category: 'Catégorie', repereId: 'Repère', size: 'Taille', description: 'Description', owner: 'Responsable'
-  };
-
   const modal = document.getElementById('entityModal');
   if (!modal) return;
 
@@ -81,6 +73,7 @@
     const type = form.dataset.type;
     const config = TYPE_CONFIG[type];
     if (!config) return;
+
     form.dataset.onboardingEnhanced = 'true';
     form.noValidate = true;
     modal.classList.add('modal--onboarding', 'modal--wide');
@@ -106,6 +99,7 @@
     body.innerHTML = onboardingSkeleton(config);
     const panels = [...body.querySelectorAll('[data-wizard-step]')];
     const usedNodes = new Set();
+
     config.steps.forEach((item, index) => {
       const fields = panels[index].querySelector('.onboarding-panel__fields');
       item.names.forEach(name => {
@@ -121,6 +115,7 @@
     const cancel = footer.querySelector('[data-action="close-modal"]');
     footer.innerHTML = '';
     if (cancel) footer.appendChild(cancel);
+
     const actions = document.createElement('div');
     actions.className = 'onboarding-footer__actions';
     const previous = button('secondary-button', 'wizard-prev', `${svg('chevron-left')}Retour`);
@@ -129,49 +124,60 @@
     actions.append(previous, next, originalSubmit);
     footer.appendChild(actions);
 
-    bindWizard(form, config, panels, previous, next, originalSubmit);
+    bindWizard(form, panels, previous, next, originalSubmit);
   }
 
   function onboardingSkeleton(config) {
     const total = config.steps.length;
     return `<div class="onboarding-layout" data-onboarding>
       <aside class="onboarding-steps" aria-label="Étapes du formulaire">
-        <div class="onboarding-steps__intro"><strong>${total} étapes simples</strong><small>Vous pouvez revenir modifier une réponse à tout moment.</small></div>
-        <div class="onboarding-stepper">${config.steps.map((item, index) => `<button type="button" class="onboarding-stepper__item ${index === 0 ? 'is-active' : ''}" data-wizard-goto="${index}" ${index > 0 ? 'aria-disabled="true"' : ''}><span>${index + 1}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.short)}</small></span></button>`).join('')}</div>
+        <div class="onboarding-steps__intro"><strong>${total} étapes</strong><small>Sélectionnez une étape déjà parcourue ou continuez dans l’ordre.</small></div>
+        <div class="onboarding-stepper">${config.steps.map((item, index) => `<button type="button" class="onboarding-stepper__item ${index === 0 ? 'is-active' : ''}" data-wizard-goto="${index}" aria-current="${index === 0 ? 'step' : 'false'}"><span>${index + 1}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.short)}</small></span></button>`).join('')}</div>
       </aside>
       <main class="onboarding-content">
         <div class="onboarding-progress"><div><span>Étape <strong data-wizard-current>1</strong> sur ${total}</span><span data-wizard-percent>${Math.round(100 / total)} %</span></div><div class="progress-track progress-track--light"><span data-wizard-progress style="width:${100 / total}%"></span></div></div>
         ${config.steps.map((item, index) => `<section class="onboarding-panel ${index === 0 ? 'is-active' : ''}" data-wizard-step="${index}" aria-hidden="${index === 0 ? 'false' : 'true'}"><header><span class="onboarding-panel__number">${String(index + 1).padStart(2, '0')}</span><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p></div></header><div class="onboarding-panel__fields form-grid ${item.columns === 2 ? 'form-grid--2' : ''}"></div></section>`).join('')}
       </main>
-      <aside class="onboarding-summary" aria-label="Récapitulatif des réponses"><div class="onboarding-summary__header"><span>${svg('list')}</span><div><strong>Vos réponses</strong><small>Toujours visibles pendant le parcours</small></div></div><div class="onboarding-summary__body" data-wizard-summary></div></aside>
     </div>`;
   }
 
-  function bindWizard(form, config, panels, previous, next, submit) {
+  function bindWizard(form, panels, previous, next, submit) {
     const stepButtons = [...form.querySelectorAll('[data-wizard-goto]')];
     let current = 0;
+    let furthest = 0;
 
     const showStep = (target, focus = true) => {
       current = Math.max(0, Math.min(Number(target), panels.length - 1));
+      furthest = Math.max(furthest, current);
+
       panels.forEach((panel, index) => {
         const active = index === current;
         panel.classList.toggle('is-active', active);
         panel.setAttribute('aria-hidden', String(!active));
       });
+
       stepButtons.forEach((item, index) => {
         item.classList.toggle('is-active', index === current);
-        item.classList.toggle('is-complete', index < current);
-        item.setAttribute('aria-disabled', String(index > current));
-        item.firstElementChild.innerHTML = index < current ? svg('check') : String(index + 1);
+        item.classList.toggle('is-complete', index < furthest && index !== current);
+        item.classList.toggle('is-upcoming', index > furthest);
+        item.setAttribute('aria-current', index === current ? 'step' : 'false');
+        item.firstElementChild.innerHTML = index < furthest && index !== current ? svg('check') : String(index + 1);
       });
+
       previous.hidden = current === 0;
       next.hidden = current === panels.length - 1;
       submit.hidden = current !== panels.length - 1;
+
       const progress = ((current + 1) / panels.length) * 100;
       form.querySelector('[data-wizard-current]').textContent = String(current + 1);
       form.querySelector('[data-wizard-percent]').textContent = `${Math.round(progress)} %`;
       form.querySelector('[data-wizard-progress]').style.width = `${progress}%`;
-      updateSummary(form, config, current, showStep);
+
+      const activeButton = stepButtons[current];
+      if (activeButton && window.matchMedia('(max-width: 960px)').matches) {
+        activeButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+
       if (focus) {
         const heading = panels[current].querySelector('h3');
         heading.tabIndex = -1;
@@ -191,19 +197,21 @@
     };
 
     const moveForward = target => {
-      for (let index = current; index < target; index += 1) if (!validateStep(index)) return;
-      showStep(target);
+      const boundedTarget = Math.min(Number(target), panels.length - 1);
+      for (let index = current; index < boundedTarget; index += 1) {
+        if (!validateStep(index)) return;
+      }
+      showStep(boundedTarget);
     };
 
     previous.addEventListener('click', () => showStep(current - 1));
     next.addEventListener('click', () => moveForward(current + 1));
     stepButtons.forEach(item => item.addEventListener('click', () => {
       const target = Number(item.dataset.wizardGoto);
-      if (target <= current) showStep(target);
+      if (target <= furthest) showStep(target);
       else moveForward(target);
     }));
-    form.addEventListener('input', () => updateSummary(form, config, current, showStep));
-    form.addEventListener('change', () => updateSummary(form, config, current, showStep));
+
     form.addEventListener('submit', event => {
       for (let index = 0; index < panels.length; index += 1) {
         if (validateStep(index)) continue;
@@ -212,39 +220,8 @@
         return;
       }
     }, true);
+
     showStep(0, false);
-  }
-
-  function updateSummary(form, config, current, showStep) {
-    const container = form.querySelector('[data-wizard-summary]');
-    if (!container) return;
-    container.innerHTML = config.steps.map((item, index) => {
-      if (index > current) return `<div class="onboarding-summary__step is-future"><div><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong></div><small>À compléter</small></div>`;
-      const entries = item.names.map(name => ({ label: LABELS[name] || name, value: fieldValue(form, name) })).filter(entry => entry.value);
-      return `<button type="button" class="onboarding-summary__step ${index === current ? 'is-current' : 'is-complete'}" data-summary-step="${index}"><div><span>${index < current ? svg('check') : index + 1}</span><strong>${escapeHtml(item.title)}</strong><em>${index < current ? 'Modifier' : 'En cours'}</em></div>${entries.length ? `<dl>${entries.map(entry => `<div><dt>${escapeHtml(entry.label)}</dt><dd>${escapeHtml(entry.value)}</dd></div>`).join('')}</dl>` : '<small>Aucune réponse renseignée</small>'}</button>`;
-    }).join('');
-    container.querySelectorAll('[data-summary-step]').forEach(item => item.addEventListener('click', () => showStep(Number(item.dataset.summaryStep))));
-  }
-
-  function fieldValue(form, name) {
-    const controls = [...form.querySelectorAll(`[name="${name}"]`)];
-    if (!controls.length) return '';
-    if (controls[0].type === 'checkbox') {
-      return controls.filter(control => control.checked).map(control => {
-        const copy = control.closest('.check-option')?.querySelector('span:last-child');
-        if (!copy) return control.value;
-        const clone = copy.cloneNode(true);
-        clone.querySelectorAll('small').forEach(node => node.remove());
-        return clone.textContent.trim();
-      }).filter(Boolean).join(', ');
-    }
-    if (controls[0].tagName === 'SELECT') return controls[0].selectedOptions[0]?.textContent.trim() || '';
-    const value = String(controls[0].value || '').trim();
-    if (!value) return '';
-    if (controls[0].type === 'date') return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00`));
-    if (name === 'budget') return `${Number(value).toLocaleString('fr-FR')} €`;
-    if (name === 'size') return `${Number(value).toLocaleString('fr-FR')} octets`;
-    return value.replace(/\n+/g, ' · ');
   }
 
   function button(className, attribute, html) {
