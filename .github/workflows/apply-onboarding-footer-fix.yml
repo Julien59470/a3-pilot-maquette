@@ -1,5 +1,6 @@
 name: Appliquer le correctif du footer onboarding
 
+# Relance du correctif après création du workflow.
 on:
   push:
     paths:
